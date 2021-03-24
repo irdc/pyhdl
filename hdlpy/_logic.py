@@ -17,7 +17,7 @@
 
 from enum import Enum, EnumMeta
 
-from . import export
+from ._lib import export
 
 class _LogicEnumMeta(EnumMeta):
 	def __call__(self, value = 0):

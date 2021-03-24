@@ -17,14 +17,8 @@
 
 from sys import modules
 
-def export(obj):
-	"""Export obj from its module (ie. add its name to __all__)."""
-
-	mod = modules[obj.__module__]
-	mod.__all__ = getattr(mod, '__all__', ()) + (obj.__name__,)
-	return obj
-
 from ._logic import *
+from ._part import *
 
 __all__ = sum((
 	tuple(getattr(v, '__all__', ()))
