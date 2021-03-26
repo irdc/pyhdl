@@ -43,6 +43,11 @@ def __makefun__({', '.join(locals.keys())}):
 class ReadOnlyDict(dict):
 	"""Read-only dictionary."""
 
+	def __new__(cls, value):
+		if type(value) is ReadOnlyDict:
+			return value
+		return super().__new__(cls, value)
+
 	def _readonly(self, *args, **kwargs):
 		raise RuntimeError('Read-only dictionary')
 

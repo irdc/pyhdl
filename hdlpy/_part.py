@@ -18,86 +18,31 @@
 import sys, copy
 from ._lib import export, makefun, ReadOnlyDict, timestamp
 
-_DEFAULTS = '__part_defaults__'
-_TYPES = '__part_types__'
-_BLOCKS = '__part_blocks__'
+class Signal:
+	__slots__ = '_name', '_type', '_default'
 
-@export
-def part(cls):
-	"""Make cls a part."""
+	def __init__(self, name, type, default):
+		self._name = name
+		self._type = type
+		self._default = default
 
-	def isdunder(name):
-		return name.startswith('__') and name.endswith('__')
+	@property
+	def type(self):
+		if self._type is None:
+			self._type = type(self._default)
+		return self._type
 
-	def issignaltype(type):
-		return not issubclass(type, Block)
+	@property
+	def default(self):
+		if self._default is not None:
+			return copy.deepcopy(self._default)
+		return self._type()
 
-	def issignal(value):
-		return issignaltype(type(value)) \
-		   and not hasattr(value, '__get__') \
-		   and not hasattr(value, '__part_defaults__') \
-		   and not callable(value)
+	def get(self, obj):
+		return getattr(obj, self._name)
 
-	def isblock(value):
-		return isinstance(value, Block)
-
-	# gather all defaults
-	defaults = {
-		k: v
-		for k, v in cls.__dict__.items()
-		if not isdunder(k)
-		and issignal(v)
-	}
-
-	# gather all types
-	types = {
-		k: t
-		for k, t in getattr(cls, '__annotations__', {}).items()
-		if not isdunder(k)
-		and issignaltype(t)
-	}
-
-	# gather all blocks
-	blocks = tuple(
-		v
-		for k, v in cls.__dict__.items()
-		if not isdunder(k)
-		and isblock(v)
-	)
-
-	# combine
-	setattr(cls, _DEFAULTS, ReadOnlyDict({k: t() for k, t in types.items()} | defaults))
-	setattr(cls, _TYPES, ReadOnlyDict({k: type(v) for k, v in defaults.items()} | types))
-	setattr(cls, _BLOCKS, blocks)
-
-	# add attribute getters and setters
-	fun = makefun(
-		'__getattribute__',
-		('self', 'name'),
-		'\n'.join((
-		'try:',
-		'\treturn super().__getattribute__(name)',
-		'except AttributeError:',
-		'\ttry:',
-		f'\t\tvalue = copy.deepcopy(self.{_DEFAULTS}[name])',
-		'\t\tsetattr(self, name, value)',
-		'\t\treturn value',
-		'\texcept KeyError:',
-		'\t\traise AttributeError(name)',
-		)),
-		globals = sys.modules[cls.__module__].__dict__,
-		locals = {'__class__': cls, 'copy': copy})
-	setattr(cls, fun.__name__, fun)
-
-	fun = makefun(
-		'__setattr__',
-		('self', 'name', 'value'),
-		f'super().__setattr__(name, self.{_TYPES}.get(name, lambda x: x)(value))',
-		globals = sys.modules[cls.__module__].__dict__,
-		locals = {'__class__': cls})
-	setattr(cls, fun.__name__, fun)
-
-	return cls
+	def set(self, obj, value):
+		setattr(obj, self._name, value)
 
 
 class Block:
@@ -152,6 +97,122 @@ class WhenBlock(Block):
 
 		return timestamp(value)
 
+
+class Part:
+	__slots__ = '_type', '_signals', '_blocks'
+
+	def __new__(self, type):
+		try:
+			return type.__part__
+		except AttributeError:
+			raise ValueError(f"{type!r}: not a part")
+
+	@classmethod
+	def new(cls, type, signals, blocks):
+		"""Create a new Part instance."""
+
+		part = object.__new__(cls)
+		part._type = type
+		part._signals = ReadOnlyDict(signals)
+		part._blocks = tuple(blocks)
+		type.__part__ = part
+		return part
+
+	@property
+	def signals(self):
+		return self._signals
+
+	@property
+	def blocks(self):
+		return self._blocks
+
+
+@export
+def part(cls):
+	"""Make cls a part."""
+
+	def isdunder(name):
+		return name.startswith('__') and name.endswith('__')
+
+	def issignaltype(type):
+		return not issubclass(type, Block)
+
+	def issignal(value):
+		return issignaltype(type(value)) \
+		   and not hasattr(value, '__get__') \
+		   and not hasattr(value, '__part_defaults__') \
+		   and not callable(value)
+
+	def isblock(value):
+		return isinstance(value, Block)
+
+	# gather all signals
+	defaults = {
+		k: v
+		for k, v in cls.__dict__.items()
+		if not isdunder(k)
+		and issignal(v)
+	}
+	types = {
+		k: t
+		for k, t in getattr(cls, '__annotations__', {}).items()
+		if not isdunder(k)
+		and issignaltype(t)
+	}
+	signals = {
+		attr: Signal(
+			attr,
+			types.get(attr, None),
+			defaults.get(attr, None))
+		for attr in defaults.keys() | types.keys()
+	}
+
+	# set slots
+	setattr(cls, '__slots__', tuple(signals.keys()))
+
+	# gather all blocks
+	blocks = tuple(
+		v
+		for k, v in cls.__dict__.items()
+		if not isdunder(k)
+		and isblock(v)
+	)
+
+	# create part
+	Part.new(cls, signals, blocks)
+
+	# hook __init__ to set all signals to their default upon instantiation
+	fun = makefun(
+		'__init__',
+		('self', '*args', '**kwargs'),
+		'\n'.join((
+		'for signal in Part(type(self)).signals.values():',
+		'\tsignal.set(self, signal.default)',
+		'return orig_init(self, *args, **kwargs)'
+		)),
+		globals = sys.modules[cls.__module__].__dict__,
+		locals = {'__class__': cls, 'Part': Part, 'orig_init': cls.__init__}
+	)
+	setattr(cls, fun.__name__, fun)
+
+	# hook __setattr__ to perform type conversion
+	fun = makefun(
+		'__setattr__',
+		('self', 'name', 'value'),
+		'\n'.join((
+		'try:',
+		'\tattr_type = Part(type(self)).signals[name].type',
+		'\tif type(value) is not attr_type:',
+		'\t\tvalue = attr_type(value)',
+		'except KeyError:',
+		'\traise AttributeError(name)',
+		'super().__setattr__(name, value)',
+		)),
+		globals = sys.modules[cls.__module__].__dict__,
+		locals = {'__class__': cls, 'Part': Part})
+	setattr(cls, fun.__name__, fun)
+
+	return cls
 
 @export
 def once(fun):
