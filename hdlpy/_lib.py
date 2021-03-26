@@ -60,21 +60,27 @@ class ReadOnlyDict(dict):
 class timestamp(int):
 	"""Timestamp with picosecond resolution."""
 
+	_units = ReadOnlyDict({
+		'd': 24 * 3600 * 10 ** 12,
+		'h': 3600 * 10 ** 12,
+		'm': 60 * 10 ** 12,
+		's': 10 ** 12,
+		'ms': 10 ** 9,
+		'\u03bcs': 10 ** 6,
+		'us': 10 ** 6,
+		'ns': 10 ** 3,
+		'ps': 1
+	})
+
 	def __new__(self, value):
-		if isinstance(value, timestamp):
+		if type(value) is timestamp:
 			return value
 		elif isinstance(value, str):
-			match = re.match('^([0-9]+)([mu\u03bcnp]?s)$', value)
+			match = re.match('^([0-9_]+) ?([mu\u03bcnp]?s|[mhd])$', value)
 			if match is None:
 				raise ValueError(f"{value!r}: not a valid timestamp")
 
-			if match[2] == 's': scale = 10 ** 12
-			elif match[2] == 'ms': scale = 10 ** 9
-			elif match[2] == 'us' or match[2] == '\u03bcs': scale = 10 ** 6
-			elif match[2] == 'ns': scale = 10 ** 3
-			elif match[2] == 'ps': scale = 1
-
-			value = int(match[1]) * scale
+			value = int(match[1]) * self._units[match[2]]
 		elif type(value) is not int:
 			raise ValueError(f"{value!r}: not a valid timestamp")
 
@@ -83,5 +89,10 @@ class timestamp(int):
 	def __add__(self, other):
 		return timestamp(super().__add__(other))
 
+	def __repr__(self):
+		return f"<timestamp: {self!s}>"
+
 	def __str__(self):
-		return f"{super().__str__()}ps"
+		for k, v in self._units.items():
+			if self % v == 0:
+				return f"{self // v} {k}"
