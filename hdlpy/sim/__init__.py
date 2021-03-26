@@ -17,8 +17,9 @@
 
 from sys import modules
 
-from ._logic import *
-from ._part import *
+from ._sim import *
+from ._task import *
+from ._wait import *
 
 __all__ = sum((
 	tuple(getattr(v, '__all__', ()))

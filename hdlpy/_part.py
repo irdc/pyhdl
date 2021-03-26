@@ -15,7 +15,7 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-import sys, copy
+import sys, copy, threading, contextlib
 from ._lib import export, makefun, ReadOnlyDict, timestamp
 
 class Signal:
@@ -55,13 +55,18 @@ class Block:
 		self.__name__ = name
 		self.__qualname__ = owner.__name__ + '.' + name
 
+	def apply(self, target):
+		raise NotImplementedError
+
 
 class OnceBlock(Block):
-	pass
+	def apply(self, target):
+		return target.once(self._fun)
 
 
 class AlwaysBlock(Block):
-	pass
+	def apply(self, target):
+		return target.always(self._fun)
 
 
 class WhenBlock(Block):
@@ -97,8 +102,31 @@ class WhenBlock(Block):
 
 		return timestamp(value)
 
+	def apply(self, target):
+		return target.when(
+			self._fun,
+			change = self._change,
+			rising = self._rising,
+			falling = self._falling,
+			delay = self._delay)
 
-class Part:
+
+class PartMeta(type):
+	_observer = threading.local()
+
+	@property
+	def current_observer(self):
+		return getattr(self._observer, 'current', None)
+
+	@contextlib.contextmanager
+	def make_current_observer(self, sim):
+		old = getattr(self._observer, 'current', None)
+		self._observer.current = sim
+		yield
+		self._observer.current = old
+
+
+class Part(metaclass = PartMeta):
 	__slots__ = '_type', '_signals', '_blocks'
 
 	def __new__(self, type):
@@ -125,6 +153,24 @@ class Part:
 	@property
 	def blocks(self):
 		return self._blocks
+
+	def parts(self, obj):
+		"""Get all direct child parts."""
+
+		for signal in self.signals.values():
+			value = signal.get(obj)
+			try:
+				Part(type(value))
+				yield value
+			except ValueError:
+				pass
+
+	def all_parts(self, obj):
+		"""Get all parts from the entire subtree."""
+
+		yield obj
+		for part in self.parts(obj):
+			yield from Part(type(part)).all_parts(part)
 
 
 @export
@@ -195,7 +241,21 @@ def part(cls):
 	)
 	setattr(cls, fun.__name__, fun)
 
-	# hook __setattr__ to perform type conversion
+	# hook __getattribute__ to wire in our observer
+	fun = makefun(
+		'__getattribute__',
+		('self', 'name'),
+		'\n'.join((
+		'value = super().__getattribute__(name)',
+		'if (observer := Part.current_observer) is not None:',
+		'\tobserver.__part_getattr__(self, name, value)',
+		'return value'
+		)),
+		globals = sys.modules[cls.__module__].__dict__,
+		locals = {'__class__': cls, 'Part': Part})
+	setattr(cls, fun.__name__, fun)
+
+	# hook __setattr__ to perform type conversion and wire in our observer
 	fun = makefun(
 		'__setattr__',
 		('self', 'name', 'value'),
@@ -206,6 +266,8 @@ def part(cls):
 		'\t\tvalue = attr_type(value)',
 		'except KeyError:',
 		'\traise AttributeError(name)',
+		'if (observer := Part.current_observer) is not None:',
+		'\tobserver.__part_setattr__(self, name, value)',
 		'super().__setattr__(name, value)',
 		)),
 		globals = sys.modules[cls.__module__].__dict__,

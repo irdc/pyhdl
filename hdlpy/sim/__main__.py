@@ -15,16 +15,26 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-from sys import modules
+import os, sys, importlib.util, inspect
 
-from ._logic import *
-from ._part import *
+from .. import *
+from . import *
 
-__all__ = sum((
-	tuple(getattr(v, '__all__', ()))
-	for k, v in modules.items()
-	if k.rsplit('._', 1)[0] == __name__
-), ())
+def _load(path):
+	spec = importlib.util.spec_from_file_location('__testbench__', path)
+	mod = importlib.util.module_from_spec(spec)
+	sys.modules[spec.name] = mod
+	spec.loader.exec_module(mod)
+	return mod
 
-def __dir__():
-	return sorted(__all__)
+if __name__ == '__main__':
+	if len(sys.argv) < 2 or len(sys.argv) > 3:
+		exe = os.path.basename(sys.executable)
+		print(f"Usage: {exe} -m pyhdl.sim file part")
+		sys.exit(1)
+
+	filename, partname = sys.argv[1], sys.argv[2]
+	mod = _load(filename)
+	part = getattr(mod, partname)
+
+	Sim(part()).run()

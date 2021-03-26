@@ -15,7 +15,7 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-import sys, re
+import sys, re, asyncio, functools
 
 def export(obj):
 	"""Export obj from its module (ie. add its name to __all__)."""
@@ -39,6 +39,19 @@ def __makefun__({', '.join(locals.keys())}):
 	scope = {}
 	exec(src, globals, scope)
 	return scope['__makefun__'](**locals)
+
+def isasync(fun):
+	"""Return if fun is async."""
+
+	return asyncio.iscoroutinefunction(fun)
+
+def make_async(fun):
+	"""Make fun async."""
+
+	async def sync(*args, **kwargs):
+		return fun(*args, **kwargs)
+
+	return fun if isasync(fun) else sync
 
 class ReadOnlyDict(dict):
 	"""Read-only dictionary."""
@@ -92,7 +105,9 @@ class timestamp(int):
 		return int.__new__(self, value)
 
 	def __add__(self, other):
-		return timestamp(super().__add__(other))
+		if type(other) is int or type(other) is timestamp:
+			return timestamp(super().__add__(other))
+		return NotImplemented
 
 	def __repr__(self):
 		return f"<timestamp: {self!s}>"
