@@ -66,7 +66,7 @@ class test_when(unittest.TestCase):
 				     self.assertRaises(ValueError):
 					when(**{cond: value})(fun)
 
-	def test_interval(self):
+	def test_delay(self):
 		tests = (
 			None,
 			123,
@@ -80,9 +80,9 @@ class test_when(unittest.TestCase):
 
 		for value in tests:
 			with self.subTest(value = value):
-				when(interval = value)(fun)
+				when(delay = value)(fun)
 
-	def test_interval_invalid(self):
+	def test_delay_invalid(self):
 		tests = (
 			True,
 			'',
@@ -95,4 +95,4 @@ class test_when(unittest.TestCase):
 		for value in tests:
 			with self.subTest(value = value), \
 			     self.assertRaises(ValueError):
-				when(interval = value)(fun)
+				when(delay = value)(fun)

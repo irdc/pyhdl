@@ -116,14 +116,14 @@ class AlwaysBlock(Block):
 
 
 class WhenBlock(Block):
-	__slots__ = '_change', '_rising', '_falling', '_interval'
+	__slots__ = '_change', '_rising', '_falling', '_delay'
 
-	def __init__(self, fun, *, change = None, rising = None, falling = None, interval = None):
+	def __init__(self, fun, *, change = None, rising = None, falling = None, delay = None):
 		super().__init__(fun)
 		self._change = self._parse_attr('change', change)
 		self._rising = self._parse_attr('rising', rising)
 		self._falling = self._parse_attr('falling', falling)
-		self._interval = self._parse_timestamp('interval', interval)
+		self._delay = self._parse_timestamp('delay', delay)
 
 	@classmethod
 	def _parse_attr(cls, name, value):
@@ -156,7 +156,7 @@ def always(fun):
 	return AlwaysBlock(fun)
 
 @export
-def when(change = None, rising = None, falling = None, interval = None):
+def when(change = None, rising = None, falling = None, delay = None):
 	"""Make fun a block that's executed whenever any of the conditions are met.
 
 	The change, rising and falling conditions each accept either the
@@ -164,8 +164,8 @@ def when(change = None, rising = None, falling = None, interval = None):
 	the given attributes change value, become 1 (for rising) or 0 (for
 	falling) the block is executed.
 
-	The interval condition specifies the interval time at which the
-	block is to be repeatedly executed.
+	The delay condition specifies the interval time at which the block
+	is to be repeatedly executed.
 	"""
 
 	def wrap(fun):
@@ -174,7 +174,7 @@ def when(change = None, rising = None, falling = None, interval = None):
 			change = change,
 			rising = rising,
 			falling = falling,
-			interval = interval
+			delay = delay
 		)
 
 	return wrap
