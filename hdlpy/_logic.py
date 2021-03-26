@@ -20,7 +20,7 @@ from enum import Enum, EnumMeta
 from ._lib import export
 
 class _LogicEnumMeta(EnumMeta):
-	def __call__(self, value = 0):
+	def __call__(self, value = 'X'):
 		return super().__call__(value)
 
 @export

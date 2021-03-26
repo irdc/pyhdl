@@ -46,7 +46,7 @@ class test_part(unittest.TestCase):
 				pass
 
 		tests = (
-			(SignalWithType, logic(0)),
+			(SignalWithType, logic('X')),
 			(SignalWithDefault, logic(1)),
 			(SignalWithTypeAndDefault, logic(1)),
 			(SignalWithBlock, logic(1)),

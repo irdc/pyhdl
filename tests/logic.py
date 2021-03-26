@@ -19,6 +19,11 @@ import unittest, operator
 from hdlpy import logic
 
 class test_logic(unittest.TestCase):
+	def test_default(self):
+		expected = logic.unknown
+		actual = logic()
+		self.assertIs(actual, expected)
+
 	def test_new(self):
 		tests = (
 			(logic.zero, logic.zero),
