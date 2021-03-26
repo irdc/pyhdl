@@ -111,6 +111,10 @@ class Block:
 		self.__qualname__ = owner.__name__ + '.' + name
 
 
+class OnceBlock(Block):
+	pass
+
+
 class AlwaysBlock(Block):
 	pass
 
@@ -148,6 +152,12 @@ class WhenBlock(Block):
 
 		return timestamp(value)
 
+
+@export
+def once(fun):
+	"""Make fun a block that's executed once."""
+
+	return OnceBlock(fun)
 
 @export
 def always(fun):
