@@ -22,7 +22,7 @@ class test_logic(unittest.TestCase):
 	def test_default(self):
 		expected = logic.unknown
 		actual = logic()
-		self.assertIs(actual, expected)
+		self.assertIs(expected, actual)
 
 	def test_new(self):
 		tests = (
@@ -43,7 +43,7 @@ class test_logic(unittest.TestCase):
 		for value, expected in tests:
 			with self.subTest(value = value, expected = expected):
 				actual = logic(value)
-				self.assertIs(actual, expected)
+				self.assertIs(expected, actual)
 
 	def test_new_invalid(self):
 		tests = (
@@ -71,7 +71,7 @@ class test_logic(unittest.TestCase):
 		for value, expected in tests:
 			with self.subTest(value = value, expected = expected):
 				actual = repr(value)
-				self.assertEqual(actual, expected)
+				self.assertEqual(expected, actual)
 
 	def test_str(self):
 		tests = (
@@ -84,7 +84,7 @@ class test_logic(unittest.TestCase):
 		for value, expected in tests:
 			with self.subTest(value = value, expected = expected):
 				actual = str(value)
-				self.assertEqual(actual, expected)
+				self.assertEqual(expected, actual)
 
 	def test_eq(self):
 		tests = (
@@ -112,7 +112,7 @@ class test_logic(unittest.TestCase):
 		for a, b, expected in tests:
 			with self.subTest(a = a, b = b, expected = expected):
 				actual = a.__eq__(b)
-				self.assertEqual(actual, expected)
+				self.assertEqual(expected, actual)
 
 	def test_eq_notimplemented(self):
 		tests = (
@@ -127,7 +127,7 @@ class test_logic(unittest.TestCase):
 		for other in tests:
 			with self.subTest(other = other):
 				actual = logic.zero.__eq__(other)
-				self.assertIs(actual, NotImplemented)
+				self.assertIs(NotImplemented, actual)
 
 	def test_ne(self):
 		tests = (
@@ -155,7 +155,7 @@ class test_logic(unittest.TestCase):
 		for a, b, expected in tests:
 			with self.subTest(a = a, b = b, expected = expected):
 				actual = a.__ne__(b)
-				self.assertEqual(actual, expected)
+				self.assertEqual(expected, actual)
 
 	def test_ne_notimplemented(self):
 		tests = (
@@ -170,7 +170,7 @@ class test_logic(unittest.TestCase):
 		for other in tests:
 			with self.subTest(other = other):
 				actual = logic.zero.__ne__(other)
-				self.assertIs(actual, NotImplemented)
+				self.assertIs(NotImplemented, actual)
 
 	def test_bool(self):
 		tests = (
@@ -183,7 +183,7 @@ class test_logic(unittest.TestCase):
 		for value, expected in tests:
 			with self.subTest(value = value, expected = expected):
 				actual = value.__bool__()
-				self.assertEqual(actual, expected)
+				self.assertEqual(expected, actual)
 
 	def test_invert(self):
 		tests = (
@@ -196,7 +196,7 @@ class test_logic(unittest.TestCase):
 		for value, expected in tests:
 			with self.subTest(value = value, expected = expected):
 				actual = value.__invert__()
-				self.assertIs(actual, expected)
+				self.assertIs(expected, actual)
 
 	def test_and(self):
 		tests = (
@@ -224,7 +224,7 @@ class test_logic(unittest.TestCase):
 		for a, b, expected in tests:
 			with self.subTest(a = a, b = b, expected = expected):
 				actual = a.__and__(b)
-				self.assertIs(actual, expected)
+				self.assertIs(expected, actual)
 
 	def test_and_notimplemented(self):
 		tests = (
@@ -239,7 +239,7 @@ class test_logic(unittest.TestCase):
 		for other in tests:
 			with self.subTest(other = other):
 				actual = logic.zero.__and__(other)
-				self.assertIs(actual, NotImplemented)
+				self.assertIs(NotImplemented, actual)
 
 	def test_or(self):
 		tests = (
@@ -267,7 +267,7 @@ class test_logic(unittest.TestCase):
 		for a, b, expected in tests:
 			with self.subTest(a = a, b = b, expected = expected):
 				actual = a.__or__(b)
-				self.assertIs(actual, expected)
+				self.assertIs(expected, actual)
 
 	def test_or_notimplemented(self):
 		tests = (
@@ -282,7 +282,7 @@ class test_logic(unittest.TestCase):
 		for other in tests:
 			with self.subTest(other = other):
 				actual = logic.zero.__or__(other)
-				self.assertIs(actual, NotImplemented)
+				self.assertIs(NotImplemented, actual)
 
 	def test_xor(self):
 		tests = (
@@ -310,7 +310,7 @@ class test_logic(unittest.TestCase):
 		for a, b, expected in tests:
 			with self.subTest(a = a, b = b, expected = expected):
 				actual = a.__xor__(b)
-				self.assertIs(actual, expected)
+				self.assertIs(expected, actual)
 
 	def test_xor_notimplemented(self):
 		tests = (
@@ -325,4 +325,4 @@ class test_logic(unittest.TestCase):
 		for other in tests:
 			with self.subTest(other = other):
 				actual = logic.zero.__xor__(other)
-				self.assertIs(actual, NotImplemented)
+				self.assertIs(NotImplemented, actual)

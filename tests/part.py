@@ -56,7 +56,7 @@ class test_part(unittest.TestCase):
 			with self.subTest(cls = cls, expected = expected):
 				test = cls()
 				actual = test.signal
-				self.assertIs(actual, expected)
+				self.assertIs(expected, actual)
 
 	def test_setattr(self):
 		@part
@@ -92,4 +92,4 @@ class test_part(unittest.TestCase):
 				test = cls()
 				test.signal = 'Z'
 				actual = test.signal
-				self.assertIs(actual, expected)
+				self.assertIs(expected, actual)

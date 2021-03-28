@@ -64,7 +64,8 @@ class test_sim(unittest.TestCase):
 					self._flipflop.clk = ~self._flipflop.clk
 					await Wait.delay('200ns')
 
-					for attr, value in check.items():
-						the_test.assertEqual(getattr(self._flipflop, attr), value)
+					for attr, expected in check.items():
+						actual = getattr(self._flipflop, attr)
+						the_test.assertEqual(expected, actual)
 
 		Sim(Testbench()).run()
