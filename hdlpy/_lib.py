@@ -38,7 +38,10 @@ def __makefun__({', '.join(locals.keys())}):
 """
 	scope = {}
 	exec(src, globals, scope)
-	return scope['__makefun__'](**locals)
+	fun = scope['__makefun__'](**locals)
+	if (cls := locals.get('__class__', None)) is not None:
+		fun.__qualname__ = f"{cls.__name__}.{name}"
+	return fun
 
 def isasync(fun):
 	"""Return if fun is async."""
