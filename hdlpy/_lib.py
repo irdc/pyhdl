@@ -119,3 +119,45 @@ class timestamp(int):
 		for k, v in self._units.items():
 			if self % v == 0:
 				return f"{self // v} {k}"
+
+
+class _End:
+	def __eq__(self, other):	return self is other
+	def __lt__(self, other):	return False
+	def __le__(self, other):	return self is other
+	def __gt__(self, other):	return True
+	def __ge__(self, other):	return True
+
+
+def join(*iterators, key = None, select = None, combine = None):
+	"""Outer join the iterators.
+
+	key -- the key to group by
+	select -- the value to select when combining
+	combine -- how to combine selected values
+	"""
+
+	if key is None:
+		key = lambda x: x
+	if select is None:
+		select = lambda x: x
+	if combine is None:
+		combine = lambda g, *x: x
+
+	end = _End()
+	actual_key = lambda x: end if x is end else key(x)
+
+	iterators = tuple(map(lambda x: iter(sorted(x, key = key)), iterators))
+	current = [*map(lambda x: next(x, end), iterators)]
+	while True:
+		first = min(current, default = end, key = actual_key)
+		if first is end:
+			break
+
+		group = key(first)
+		value = combine(group, *(select(v) if actual_key(v) == group else None for v in current))
+		yield group, value
+
+		for i in range(len(iterators)):
+			if actual_key(current[i]) == group:
+				current[i] = next(iterators[i], end)

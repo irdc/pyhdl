@@ -16,7 +16,7 @@
 #
 
 import sys, copy, threading, contextlib
-from ._lib import export, makefun, ReadOnlyDict, timestamp
+from ._lib import export, makefun, ReadOnlyDict, timestamp, join
 
 class Signal:
 	__slots__ = '_name', '_type', '_default'
@@ -192,26 +192,29 @@ def part(cls):
 	def isblock(value):
 		return isinstance(value, Block)
 
+	annotations = getattr(cls, '__annotations__', {})
+	attrs = cls.__dict__
+
 	# gather all signals
-	defaults = {
-		k: v
-		for k, v in cls.__dict__.items()
-		if not isdunder(k)
-		and issignal(v)
-	}
-	types = {
-		k: t
-		for k, t in getattr(cls, '__annotations__', {}).items()
-		if not isdunder(k)
-		and issignaltype(t)
-	}
 	signals = {
-		attr: Signal(
-			attr,
-			types.get(attr, None),
-			defaults.get(attr, None))
-		for attr in defaults.keys() | types.keys()
+		attr: signal
+		for attr, signal
+		in join(
+			annotations.items(),
+			attrs.items(),
+			key = lambda x: x[0],
+			select = lambda x: x[1],
+			combine = Signal)
+		if not isdunder(attr)
+		and issignaltype(signal.type)
+		and issignal(signal.default)
 	}
+
+	# remove attributes that have been turned into signals from
+	# the class dict
+	for attr in signals.keys():
+		if hasattr(cls, attr):
+			delattr(cls, attr)
 
 	# set slots
 	setattr(cls, '__slots__', tuple(signals.keys()))
@@ -219,7 +222,7 @@ def part(cls):
 	# gather all blocks
 	blocks = tuple(
 		v
-		for k, v in cls.__dict__.items()
+		for k, v in attrs.items()
 		if not isdunder(k)
 		and isblock(v)
 	)
