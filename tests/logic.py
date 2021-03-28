@@ -62,10 +62,10 @@ class test_logic(unittest.TestCase):
 
 	def test_repr(self):
 		tests = (
-			(logic.zero, "<logic.zero: '0'>"),
-			(logic.one, "<logic.one: '1'>"),
-			(logic.hi_z, "<logic.hi_z: 'Z'>"),
-			(logic.unknown, "<logic.unknown: 'X'>"),
+			(logic.zero, "<logic '0'>"),
+			(logic.one, "<logic '1'>"),
+			(logic.hi_z, "<logic 'Z'>"),
+			(logic.unknown, "<logic 'X'>"),
 		)
 
 		for value, expected in tests:
@@ -75,10 +75,10 @@ class test_logic(unittest.TestCase):
 
 	def test_str(self):
 		tests = (
-			(logic.zero, 'logic.zero'),
-			(logic.one, 'logic.one'),
-			(logic.hi_z, 'logic.hi_z'),
-			(logic.unknown, 'logic.unknown')
+			(logic.zero, '0'),
+			(logic.one, '1'),
+			(logic.hi_z, 'Z'),
+			(logic.unknown, 'X')
 		)
 
 		for value, expected in tests:

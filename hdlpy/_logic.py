@@ -52,6 +52,12 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 
 		return None
 
+	def __repr__(self):
+		return f"<logic '{self!s}'>"
+
+	def __str__(self):
+		return self._value_
+
 	def __eq__(self, other):
 		try:
 			return self is logic(other)
