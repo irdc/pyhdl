@@ -45,11 +45,22 @@ class test_part(unittest.TestCase):
 			def foo(self):
 				pass
 
+		@part
+		def SignalFromFunction(val):
+			signal = val
+
+			@always
+			def foo(self):
+				pass
+
+			return part()
+
 		tests = (
 			(SignalWithType, logic('X')),
 			(SignalWithDefault, logic(1)),
 			(SignalWithTypeAndDefault, logic(1)),
 			(SignalWithBlock, logic(1)),
+			(SignalFromFunction(logic('Z')), logic('Z'))
 		)
 
 		for cls, expected in tests:
@@ -79,11 +90,22 @@ class test_part(unittest.TestCase):
 			def foo(self):
 				pass
 
+		@part
+		def SignalFromFunction(val: logic):
+			signal = val
+
+			@always
+			def foo(self):
+				pass
+
+			return part()
+
 		tests = (
 			(SignalWithType),
 			(SignalWithDefault),
 			(SignalWithTypeAndDefault),
 			(SignalWithBlock),
+			(SignalFromFunction[logic('Z')]),
 		)
 
 		expected = logic('Z')

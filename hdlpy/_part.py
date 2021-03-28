@@ -15,7 +15,7 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-import sys, copy, threading, contextlib
+import sys, copy, threading, contextlib, types, typing, inspect
 from ._lib import export, makefun, ReadOnlyDict, timestamp, join
 
 class Signal:
@@ -173,15 +173,41 @@ class Part(metaclass = PartMeta):
 			yield from Part(type(part)).all_parts(part)
 
 
+class FunctionPart:
+	__slots__ = '__qualname__', '__name__', '_fun',
+
+	def __init__(self, fun):
+		self._fun = fun
+		self.__name__ = fun.__name__
+		self.__qualname__ = f"{fun.__module__}.{fun.__name__}"
+
+	def __call__(self, *args, **kwargs):
+		return self._fun(*args, **kwargs)
+
+	def __getitem__(self, index):
+		if type(index) is tuple:
+			return self._fun(*index)
+		return self._fun(index)
+
+	def __repr__(self):
+		return "<function part '{self.__qualname__}'>"
+
+	def __set_name__(self, obj, name):
+		self.__name__ = name
+		self.__qualname__ = f"{obj.__name__}.{name}"
+
+
 @export
-def part(cls):
-	"""Make cls a part."""
+def part(obj = None):
+	"""Make obj a part."""
 
 	def isdunder(name):
 		return name.startswith('__') and name.endswith('__')
 
-	def issignaltype(type):
-		return not issubclass(type, Block)
+	def issignaltype(ty):
+		return ty is not typing.Final \
+		and typing.get_origin(ty) is not typing.Final \
+		and not (ty is type and issubclass(ty, Block))
 
 	def issignal(value):
 		return issignaltype(type(value)) \
@@ -192,92 +218,131 @@ def part(cls):
 	def isblock(value):
 		return isinstance(value, Block)
 
-	annotations = getattr(cls, '__annotations__', {})
-	attrs = cls.__dict__
+	def make_type_part(cls):
+		annotations = getattr(cls, '__annotations__', {})
+		attrs = cls.__dict__
 
-	# gather all signals
-	signals = {
-		attr: signal
-		for attr, signal
-		in join(
-			annotations.items(),
-			attrs.items(),
-			key = lambda x: x[0],
-			select = lambda x: x[1],
-			combine = Signal)
-		if not isdunder(attr)
-		and issignaltype(signal.type)
-		and issignal(signal.default)
-	}
+		# gather all signals
+		signals = {
+			attr: signal
+			for attr, signal
+			in join(
+				annotations.items(),
+				attrs.items(),
+				key = lambda x: x[0],
+				select = lambda x: x[1],
+				combine = Signal)
+			if not isdunder(attr)
+			and issignaltype(signal.type)
+			and issignal(signal.default)
+		}
 
-	# remove attributes that have been turned into signals from
-	# the class dict
-	for attr in signals.keys():
-		if hasattr(cls, attr):
-			delattr(cls, attr)
+		# remove attributes that have been turned into signals from
+		# the class dict
+		for attr in signals.keys():
+			if hasattr(cls, attr):
+				delattr(cls, attr)
 
-	# set slots
-	setattr(cls, '__slots__', tuple(signals.keys()))
+		# set slots
+		setattr(cls, '__slots__', tuple(signals.keys()))
 
-	# gather all blocks
-	blocks = tuple(
-		v
-		for k, v in attrs.items()
-		if not isdunder(k)
-		and isblock(v)
-	)
+		# gather all blocks
+		blocks = tuple(
+			v
+			for k, v in attrs.items()
+			if not isdunder(k)
+			and isblock(v)
+		)
 
-	# create part
-	Part.new(cls, signals, blocks)
+		# create part
+		Part.new(cls, signals, blocks)
 
-	# hook __init__ to set all signals to their default upon instantiation
-	fun = makefun(
-		'__init__',
-		('self', '*args', '**kwargs'),
-		'\n'.join((
-		'for signal in Part(type(self)).signals.values():',
-		'\tsignal.set(self, signal.default)',
-		'return orig_init(self, *args, **kwargs)'
-		)),
-		globals = sys.modules[cls.__module__].__dict__,
-		locals = {'__class__': cls, 'Part': Part, 'orig_init': cls.__init__}
-	)
-	setattr(cls, fun.__name__, fun)
+		# hook __init__ to set all signals to their default upon instantiation
+		fun = makefun(
+			'__init__',
+			('self', '*args', '**kwargs'),
+			'\n'.join((
+			'for signal in Part(type(self)).signals.values():',
+			'\tsignal.set(self, signal.default)',
+			'return orig_init(self, *args, **kwargs)'
+			)),
+			globals = sys.modules[cls.__module__].__dict__,
+			locals = {'__class__': cls, 'Part': Part, 'orig_init': cls.__init__}
+		)
+		setattr(cls, fun.__name__, fun)
 
-	# hook __getattribute__ to wire in our observer
-	fun = makefun(
-		'__getattribute__',
-		('self', 'name'),
-		'\n'.join((
-		'value = super().__getattribute__(name)',
-		'if (observer := Part.current_observer) is not None:',
-		'\tobserver.__part_getattr__(self, name, value)',
-		'return value'
-		)),
-		globals = sys.modules[cls.__module__].__dict__,
-		locals = {'__class__': cls, 'Part': Part})
-	setattr(cls, fun.__name__, fun)
+		# hook __getattribute__ to wire in our observer
+		fun = makefun(
+			'__getattribute__',
+			('self', 'name'),
+			'\n'.join((
+			'value = super().__getattribute__(name)',
+			'if (observer := Part.current_observer) is not None:',
+			'\tobserver.__part_getattr__(self, name, value)',
+			'return value'
+			)),
+			globals = sys.modules[cls.__module__].__dict__,
+			locals = {'__class__': cls, 'Part': Part})
+		setattr(cls, fun.__name__, fun)
 
-	# hook __setattr__ to perform type conversion and wire in our observer
-	fun = makefun(
-		'__setattr__',
-		('self', 'name', 'value'),
-		'\n'.join((
-		'try:',
-		'\tattr_type = Part(type(self)).signals[name].type',
-		'\tif type(value) is not attr_type:',
-		'\t\tvalue = attr_type(value)',
-		'except KeyError:',
-		'\traise AttributeError(name)',
-		'if (observer := Part.current_observer) is not None:',
-		'\tobserver.__part_setattr__(self, name, value)',
-		'super().__setattr__(name, value)',
-		)),
-		globals = sys.modules[cls.__module__].__dict__,
-		locals = {'__class__': cls, 'Part': Part})
-	setattr(cls, fun.__name__, fun)
+		# hook __setattr__ to perform type conversion and wire in our observer
+		fun = makefun(
+			'__setattr__',
+			('self', 'name', 'value'),
+			'\n'.join((
+			'try:',
+			'\tattr_type = Part(type(self)).signals[name].type',
+			'\tif type(value) is not attr_type:',
+			'\t\tvalue = attr_type(value)',
+			'except KeyError:',
+			'\traise AttributeError(name)',
+			'if (observer := Part.current_observer) is not None:',
+			'\tobserver.__part_setattr__(self, name, value)',
+			'super().__setattr__(name, value)',
+			)),
+			globals = sys.modules[cls.__module__].__dict__,
+			locals = {'__class__': cls, 'Part': Part})
+		setattr(cls, fun.__name__, fun)
 
-	return cls
+		return cls
+
+	def make_fun_part(fun):
+		return FunctionPart(fun)
+
+	def make_frame_part():
+		frame = inspect.currentframe()
+		try:
+			caller = frame.f_back.f_back
+
+			# generate class name based on function arguments
+			arg_info = inspect.getargvalues(caller)
+			name = inspect.getframeinfo(caller).function + '[' + \
+				inspect.formatargvalues(*arg_info)[1:-2] + ']'
+
+			# determine class attributes, adding arguments as
+			# Final so they appear on the class instead of on
+			# the instance and won't be able to be modified
+			attrs = dict(caller.f_locals)
+			attrs['__module__'] = caller.f_globals.get('__name__', '__main__')
+			attrs['__annotations__'] = {arg: typing.Final[type(arg)] for arg in arg_info.args}
+
+			# create the class
+			cls = type(name, (), attrs)
+			for attr, value in attrs.items():
+				if hasattr(value, '__set_name__'):
+					value.__set_name__(cls, attr)
+
+			# turn it into a part
+			return make_type_part(cls)
+		finally:
+			del frame
+
+	if type(obj) is type:
+		return make_type_part(obj)
+	elif callable(obj):
+		return make_fun_part(obj)
+	else:
+		return make_frame_part()
 
 @export
 def once(fun):
