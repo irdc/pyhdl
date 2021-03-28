@@ -212,7 +212,6 @@ def part(obj = None):
 	def issignal(value):
 		return issignaltype(type(value)) \
 		   and not hasattr(value, '__get__') \
-		   and not hasattr(value, '__part_defaults__') \
 		   and not callable(value)
 
 	def isblock(value):
