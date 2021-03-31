@@ -18,6 +18,7 @@
 from sys import modules
 
 from ._logic import *
+from ._logvec import *
 from ._part import *
 
 __all__ = sum((
