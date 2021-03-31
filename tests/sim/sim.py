@@ -68,4 +68,8 @@ class test_sim(unittest.TestCase):
 						actual = getattr(self._flipflop, attr)
 						the_test.assertEqual(expected, actual)
 
-		Sim(Testbench()).run()
+		testbench = Testbench()
+		Sim(testbench).run()
+
+		# if this fails, the tests didn't actually run
+		the_test.assertEqual(testbench._flipflop.clk, logic(0))

@@ -207,7 +207,7 @@ def part(obj = None):
 	def issignaltype(ty):
 		return ty is not typing.Final \
 		and typing.get_origin(ty) is not typing.Final \
-		and not (ty is type and issubclass(ty, Block))
+		and not (type(ty) is type and issubclass(ty, Block))
 
 	def issignal(value):
 		return issignaltype(type(value)) \
