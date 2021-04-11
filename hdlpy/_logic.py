@@ -67,6 +67,11 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 	def __str__(self):
 		return self._value_
 
+	def __format__(self, fmt):
+		if fmt != '':
+			raise ValueError(fmt)
+		return str(self)
+
 	def __eq__(self, other):
 		try:
 			return (type(other) is str and other == '-') or self is logic(other)

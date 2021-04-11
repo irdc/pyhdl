@@ -166,6 +166,68 @@ class test_logvec(unittest.TestCase):
 				actual = str(value)
 				self.assertEqual(expected, actual)
 
+	def test_format(self):
+		tests = (
+			(logvec(0), '', '0'),
+			(logvec(1), '', '1'),
+			(logvec(0), 'b', '0'),
+			(logvec(1), 'b', '1'),
+			(logvec(0), 'd', '0'),
+			(logvec(1), 'd', '1'),
+			(logvec(0), 'n', '0'),
+			(logvec(1), 'n', '1'),
+			(logvec(0), 'o', '0'),
+			(logvec(1), 'o', '1'),
+			(logvec(0), 'x', '0'),
+			(logvec(1), 'x', '1'),
+			(logvec(0), 'X', '0'),
+			(logvec(1), 'X', '1'),
+			(logvec(42), '', '101010'),
+			(logvec(42), 'b', '101010'),
+			(logvec(42), 'o', '52'),
+			(logvec(42), 'd', '42'),
+			(logvec(42), 'n', '42'),
+			(logvec(42), 'x', '2a'),
+			(logvec(42), 'X', '2A'),
+			(logvec('1X1010'), '', '1X1010'),
+			(logvec('1X1010'), 'b', '1X1010'),
+			(logvec('1X1010'), 'o', 'x2'),
+			(logvec('1X1010'), 'x', 'xa'),
+			(logvec('1X1010'), 'X', 'XA'),
+			(logvec('001X1010'), 'x', 'xa'),
+			(logvec('001X1010'), 'X', 'XA'),
+			(logvec.empty, '', ''),
+			(logvec.empty, 'b', ''),
+			(logvec.empty, 'o', '0'),
+			(logvec.empty, 'd', '0'),
+			(logvec.empty, 'n', '0'),
+			(logvec.empty, 'x', '0'),
+			(logvec.empty, 'X', '0'),
+		)
+
+		for value, fmt, expected in tests:
+			with self.subTest(value = value, fmt = fmt, expected = expected):
+				actual = format(value, fmt)
+				self.assertEqual(expected, actual)
+
+	def test_format_invalid(self):
+		tests = (
+			(logvec(0), 'supercalifragilisticexpialidocious'),
+			(logvec('X'), 'd'),
+			(logvec('Z'), 'd'),
+			(logvec('X'), 'n'),
+			(logvec('Z'), 'n'),
+			(logvec('1X1010'), 'n'),
+			(logvec('1X1010'), 'n'),
+			(logvec('001X1010'), 'n'),
+			(logvec('001X1010'), 'n'),
+		)
+
+		for value, fmt in tests:
+			with self.subTest(value = value, fmt = fmt):
+				with self.assertRaises(ValueError):
+					format(value, fmt)
+
 	def test_eq(self):
 		tests = (
 			(logvec(0), logvec(0), True),

@@ -86,6 +86,30 @@ class test_logic(unittest.TestCase):
 				actual = str(value)
 				self.assertEqual(expected, actual)
 
+	def test_format(self):
+		tests = (
+			(logic.zero, '', '0'),
+			(logic.one, '', '1'),
+			(logic.hi_z, '', 'Z'),
+			(logic.unknown, '', 'X'),
+		)
+
+		for value, fmt, expected in tests:
+			with self.subTest(value = value, fmt = fmt, expected = expected):
+				actual = format(value, fmt)
+				self.assertEqual(expected, actual)
+
+	def test_format_invalid(self):
+		tests = (
+			'd',
+			'supercalifragilisticexpialidocious'
+		)
+
+		for fmt in tests:
+			with self.subTest(fmt = fmt):
+				with self.assertRaises(ValueError):
+					format(logic.zero, fmt)
+
 	def test_eq(self):
 		tests = (
 			(logic.zero, logic.zero, True),

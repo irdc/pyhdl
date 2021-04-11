@@ -104,6 +104,36 @@ class logvec(tuple, metaclass = _LogvecMeta):
 	def __str__(self):
 		return ''.join(b._value_ for b in self)
 
+	def __format__(self, fmt):
+		if fmt == 'b' or fmt == '':
+			return str(self)
+		elif fmt == 'o':
+			bits = 3
+		elif fmt == 'd' or fmt == 'n':
+			return str(self.unsigned)
+		elif fmt == 'x' or fmt == 'X':
+			bits = 4
+		else:
+			raise ValueError(fmt)
+
+		if len(self) == 0:
+			return '0'
+		elif len(self) == bits:
+			try:
+				return format(self.unsigned, fmt)
+			except ValueError:
+				return 'X' if fmt == 'X' else 'x'
+
+		result = ''
+		buf = [logic(0)] * (bits - len(self) % bits) if len(self) % bits != 0 else []
+		for bit in self:
+			buf.append(bit)
+			if len(buf) == bits:
+				result += format(logvec(buf), fmt)
+				buf.clear()
+
+		return result
+
 	def __getitem__(self, index):
 		"""self[index]
 
