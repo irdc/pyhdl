@@ -20,8 +20,30 @@ from enum import Enum, EnumMeta
 from ._lib import export
 
 class _LogicEnumMeta(EnumMeta):
-	def __call__(self, value = 'X'):
-		return super().__call__(value)
+	def __call__(cls, value = 'X'):
+		if type(value) is cls:
+			return value
+
+		if type(value) is bool:
+			return cls.zero if value == False else cls.one
+
+		if type(value) is int:
+			if value == 0:
+				return cls.zero
+			elif value == 1:
+				return cls.one
+
+		if type(value) is str:
+			if value == '0':
+				return cls.zero
+			elif value == '1':
+				return cls.one
+			elif value == 'Z':
+				return cls.hi_z
+			elif value == 'X':
+				return cls.unknown
+
+		raise ValueError(f"{value!r}: not a valid logic value")
 
 @export
 class logic(str, Enum, metaclass = _LogicEnumMeta):
@@ -39,19 +61,6 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 	hi_z = 'Z'
 	unknown = 'X'
 
-	@classmethod
-	def _missing_(cls, value):
-		if type(value) is bool:
-			return logic.zero if value == False else logic.one
-
-		if type(value) is int:
-			if value == 0:
-				return logic.zero
-			elif value == 1:
-				return logic.one
-
-		return None
-
 	def __repr__(self):
 		return f"<logic '{self!s}'>"
 
@@ -60,13 +69,13 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 
 	def __eq__(self, other):
 		try:
-			return self is logic(other)
+			return (type(other) is str and other == '-') or self is logic(other)
 		except ValueError:
 			return NotImplemented
 
 	def __ne__(self, other):
 		try:
-			return self is not logic(other)
+			return not ((type(other) is str and other == '-') or self is logic(other))
 		except ValueError:
 			return NotImplemented
 

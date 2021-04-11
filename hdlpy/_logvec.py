@@ -148,6 +148,25 @@ class logvec(tuple, metaclass = _LogvecMeta):
 		value = self.unsigned
 		return value - 2 ** len(self) if self[-1] else value
 
+	def __eq__(self, other):
+		try:
+			if type(other) is str and '-' in other:
+				other = tuple(
+					logic(b) if b != '-' else a
+					for a, b in zip(self, (b for b in other if b != '_'))
+				)
+			return super().__eq__(type(self)(other))
+		except AttributeError:
+			return NotImplemented
+		except TypeError:
+			return NotImplemented
+		except ValueError:
+			return NotImplemented
+
+	def __ne__(self, other):
+		eq = self.__eq__(other)
+		return NotImplemented if eq is NotImplemented else not eq
+
 	@staticmethod
 	def _apply(oper, left, right):
 		try:

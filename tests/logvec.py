@@ -170,16 +170,25 @@ class test_logvec(unittest.TestCase):
 		tests = (
 			(logvec(0), logvec(0), True),
 			(logvec(0), logvec(1), False),
+			(logvec(42), 42, True),
+			(logvec(42), 13, False),
 			(logvec(42), logvec(42), True),
 			(logvec(42), logvec(13), False),
 			(logvec[15:8](42), logvec[7:0](42), True),
 			(logvec[15:8](42), logvec[7:0](13), False),
+			(logvec(42), '101-10', True),
+			(logvec(42), '10_10-0', True),
+			(logvec(13), '10_10-0', False),
 		)
 
 		for a, b, expected in tests:
-			with self.subTest(a = a, b = b, expected = expected):
-				actual = a == b
+			with self.subTest(fun = '__eq__', a = a, b = b, expected = expected):
+				actual = a.__eq__(b)
 				self.assertEqual(expected, actual)
+
+			with self.subTest(fun = '__ne__', a = a, b = b, expected = expected):
+				actual = a.__ne__(b)
+				self.assertEqual(not expected, actual)
 
 	def test_getitem(self):
 		tests = (

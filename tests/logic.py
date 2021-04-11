@@ -92,21 +92,25 @@ class test_logic(unittest.TestCase):
 			(logic.zero, logic.one, False),
 			(logic.zero, logic.hi_z, False),
 			(logic.zero, logic.unknown, False),
+			(logic.zero, '-', True),
 
 			(logic.one, logic.zero, False),
 			(logic.one, logic.one, True),
 			(logic.one, logic.hi_z, False),
 			(logic.one, logic.unknown, False),
+			(logic.one, '-', True),
 
 			(logic.hi_z, logic.zero, False),
 			(logic.hi_z, logic.one, False),
 			(logic.hi_z, logic.hi_z, True),
 			(logic.hi_z, logic.unknown, False),
+			(logic.hi_z, '-', True),
 
 			(logic.unknown, logic.zero, False),
 			(logic.unknown, logic.one, False),
 			(logic.unknown, logic.hi_z, False),
 			(logic.unknown, logic.unknown, True),
+			(logic.unknown, '-', True),
 		)
 
 		for a, b, expected in tests:
@@ -135,21 +139,25 @@ class test_logic(unittest.TestCase):
 			(logic.zero, logic.one, True),
 			(logic.zero, logic.hi_z, True),
 			(logic.zero, logic.unknown, True),
+			(logic.zero, '-', False),
 
 			(logic.one, logic.zero, True),
 			(logic.one, logic.one, False),
 			(logic.one, logic.hi_z, True),
 			(logic.one, logic.unknown, True),
+			(logic.one, '-', False),
 
 			(logic.hi_z, logic.zero, True),
 			(logic.hi_z, logic.one, True),
 			(logic.hi_z, logic.hi_z, False),
 			(logic.hi_z, logic.unknown, True),
+			(logic.hi_z, '-', False),
 
 			(logic.unknown, logic.zero, True),
 			(logic.unknown, logic.one, True),
 			(logic.unknown, logic.hi_z, True),
 			(logic.unknown, logic.unknown, False),
+			(logic.unknown, '-', False),
 		)
 
 		for a, b, expected in tests:
