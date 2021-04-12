@@ -22,10 +22,10 @@ from . import logic
 from ._lib import export
 from ._span import rspan
 
-class _LogvecMeta(type):
+class _GenericLogvecType(type):
 	@cache
 	def _make(cls, span):
-		class logvec(cls):
+		class logvec(cls, metaclass = _LogvecType):
 			_span = span
 		logvec.__name__ = f"{cls.__name__}[{span}]"
 		logvec.__qualname__ = f"{cls.__qualname__}[{span}]"
@@ -57,6 +57,8 @@ class _LogvecMeta(type):
 			if type(value) is logic:
 				result = (value,)
 			elif type(value) is int:
+				if value < 0:
+					value = 2 ** (value.bit_length() + 1) + value
 				value = bin(value)[2:]
 			if len(value) == 0:
 				raise ValueError(f"{value!r}: too short")
@@ -65,33 +67,48 @@ class _LogvecMeta(type):
 		except TypeError:
 			raise ValueError(value)
 
-		if cls._span is not None:
-			if len(result) < len(cls._span):
-				result = (logic(0),) * (len(cls._span) - len(result)) + result
-			elif len(result) > len(cls._span):
-				raise ValueError(f"{value!r}: too long for {cls.__name__}")
+		return result
+
+	def __call__(cls, value):
+		if isinstance(value, cls):
+			return value
+		elif not isinstance(value, logvec):
+			value = cls._convert(value)
+		cls = cls[len(value) - 1:0]
+
+		return cls.__new__(cls, value)
+
+
+class _LogvecType(_GenericLogvecType):
+	def _convert(cls, value):
+		if type(value) is int and value < 0:
+			value = 2 ** len(cls._span) + value
+
+		result = super()._convert(value)
+
+		if len(result) < len(cls._span):
+			result = (logic(0),) * (len(cls._span) - len(result)) + result
+		elif len(result) > len(cls._span):
+			raise ValueError(f"{value!r}: too long for {cls.__name__}")
 
 		return result
+
+	def __getitem__(cls, index):
+		raise RuntimeError("not a generic type")
 
 	def __call__(cls, value = None):
 		if isinstance(value, cls):
 			return value
-		elif value is None and cls._span is not None:
+		elif value is None:
 			value = (logic(),) * len(cls._span)
-		elif type(value) is int and value < 0:
-			if cls._span is None:
-				cls = cls[value.bit_length():0]
-			value = 2 ** len(cls._span) + value
-
-		value = cls._convert(value)
-		if cls._span is None:
-			cls = cls[len(value) - 1:0]
+		elif not (isinstance(value, logvec) and cls._span == value._span):
+			value = cls._convert(value)
 
 		return cls.__new__(cls, value)
 
 
 @export
-class logvec(tuple, metaclass = _LogvecMeta):
+class logvec(tuple, metaclass = _GenericLogvecType):
 	_span = None
 
 	def __new__(cls, value):
