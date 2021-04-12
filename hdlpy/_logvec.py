@@ -140,6 +140,73 @@ class _LogvecType(_GenericLogvecType):
 
 @export
 class logvec(tuple, metaclass = _GenericLogvecType):
+	@staticmethod
+	def _unsigned(obj):
+		value = 0
+		for bit in obj:
+			value <<= 1
+			if bit is logic.one:
+				value += 1
+			elif bit is not logic.zero:
+				raise ValueError("{obj!r}")
+		return value
+
+	@staticmethod
+	def _coerce(obj, other):
+		if not isinstance(obj, logvec):
+			if isinstance(other, logvec):
+				obj = logvec(obj, type(other)._factory)
+			else:
+				obj = logvec(obj)
+		return obj
+
+	@staticmethod
+	def _get_factory(*objs):
+		factory = logvec._make_logvec
+		default = factory
+		for obj in objs:
+			if obj._factory != factory:
+				if factory == default:
+					factory = obj._factory
+				elif obj._factory != default:
+					return None
+		return factory
+
+	@staticmethod
+	def _apply(oper, left, right):
+		try:
+			left, right = logvec._coerce(left, right), logvec._coerce(right, left)
+			factory = logvec._get_factory(left, right)
+			if factory is None:
+				return NotImplemented
+			ty = factory(
+				left._span \
+				if len(left._span) >= len(right._span) else \
+				right._span)
+			return logvec.__new__(ty, (oper(l, r) for l, r in zip(ty(left), ty(right))))
+		except AttributeError:
+			return NotImplemented
+		except TypeError:
+			return NotImplemented
+		except ValueError:
+			return NotImplemented
+
+	@staticmethod
+	def _concat(left, right):
+		try:
+			left, right = logvec._coerce(left, right), logvec._coerce(right, left)
+			factory = logvec._get_factory(left, right)
+			if factory is None:
+				return NotImplemented
+			ty = factory(rspan(start = len(left._span) + len(right._span) - 1, end = 0))
+			return tuple.__new__(ty, (*left, *right))
+		except AttributeError:
+			return NotImplemented
+		except TypeError:
+			return NotImplemented
+		except ValueError:
+			return NotImplemented
+
 	def __new__(cls, value):
 		assert cls._span is not None
 		return tuple.__new__(cls, tuple(value))
@@ -200,17 +267,6 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 				result = ty(result)
 		return result
 
-	@staticmethod
-	def _unsigned(obj):
-		value = 0
-		for bit in obj:
-			value <<= 1
-			if bit is logic.one:
-				value += 1
-			elif bit is not logic.zero:
-				raise ValueError("{obj!r}")
-		return value
-
 	unsigned = type_property()
 	signed = type_property()
 
@@ -248,46 +304,6 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def __ne__(self, other):
 		eq = self.__eq__(other)
 		return NotImplemented if eq is NotImplemented else not eq
-
-	@staticmethod
-	def _coerce(obj, other):
-		if not isinstance(obj, logvec):
-			if isinstance(other, logvec):
-				obj = logvec(obj, type(other)._factory)
-			else:
-				obj = logvec(obj)
-		return obj
-
-	@staticmethod
-	def _get_factory(*objs):
-		factory = logvec._make_logvec
-		default = factory
-		for obj in objs:
-			if obj._factory != factory:
-				if factory == default:
-					factory = obj._factory
-				elif obj._factory != default:
-					return None
-		return factory
-
-	@staticmethod
-	def _apply(oper, left, right):
-		try:
-			left, right = logvec._coerce(left, right), logvec._coerce(right, left)
-			factory = logvec._get_factory(left, right)
-			if factory is None:
-				return NotImplemented
-			ty = factory(
-				left._span \
-				if len(left._span) >= len(right._span) else \
-				right._span)
-			return logvec.__new__(ty, (oper(l, r) for l, r in zip(ty(left), ty(right))))
-		except AttributeError:
-			return NotImplemented
-		except TypeError:
-			return NotImplemented
-		except ValueError:
-			return NotImplemented
 
 	def __invert__(self):
 		"""~self"""
@@ -368,22 +384,6 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			raise ValueError(f"{amount!r}: negative shift count")
 		amount %= len(self)
 		return self if amount == 0 else logvec._concat(self[amount - 1:], self[:amount])
-
-	@staticmethod
-	def _concat(left, right):
-		try:
-			left, right = logvec._coerce(left, right), logvec._coerce(right, left)
-			factory = logvec._get_factory(left, right)
-			if factory is None:
-				return NotImplemented
-			ty = factory(rspan(start = len(left._span) + len(right._span) - 1, end = 0))
-			return tuple.__new__(ty, (*left, *right))
-		except AttributeError:
-			return NotImplemented
-		except TypeError:
-			return NotImplemented
-		except ValueError:
-			return NotImplemented
 
 	def __add__(self, other):
 		"""Concatenate self and other."""
