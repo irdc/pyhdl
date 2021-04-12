@@ -19,27 +19,48 @@ import operator
 from functools import cache
 
 from . import logic
-from ._lib import export
+from ._lib import export, type_property
 from ._span import rspan
 
 class _GenericLogvecType(type):
 	@cache
-	def _make(cls, span):
+	def _make_logvec(cls, span):
 		class logvec(cls, metaclass = _LogvecType):
+			_factory = cls._make_logvec
 			_span = span
+
 		logvec.__name__ = f"{cls.__name__}[{span}]"
 		logvec.__qualname__ = f"{cls.__qualname__}[{span}]"
 		logvec.__module__ = cls.__module__
 		return logvec
 
-	def __getitem__(cls, index):
-		"""Create type with given range.
+	@cache
+	def _make_unsigned(cls, span):
+		class unsigned(unsigned_logvec, metaclass = _LogvecType):
+			_factory = cls._make_unsigned
+			_span = span
 
-		Note that indices go from high to low and slices are
-		inclusive instead of exclusive. Therefore self[31:0]
-		returns a 32-element vector type.
-		"""
+		unsigned.__name__ = f"{cls.__name__}[{span}].unsigned"
+		unsigned.__qualname__ = f"{cls.__qualname__}[{span}].unsigned"
+		unsigned.__module__ = cls.__module__
+		return unsigned
 
+	@cache
+	def _make_signed(cls, span):
+		class signed(signed_logvec, metaclass = _LogvecType):
+			_factory = cls._make_signed
+			_span = span
+
+		signed.__name__ = f"{cls.__name__}[{span}].signed"
+		signed.__qualname__ = f"{cls.__qualname__}[{span}].signed"
+		signed.__module__ = cls.__module__
+		return signed
+
+	def _make_type(cls, index, factory = None):
+		if factory is None:
+			factory = logvec._make_logvec
+		if type(index) is rspan:
+			return factory(index)
 		if type(index) is not slice:
 			raise ValueError(f"{index!r}: not a slice")
 		if index.start is None \
@@ -50,7 +71,17 @@ class _GenericLogvecType(type):
 		or index.step is not None:
 			raise ValueError(f"{index!r}: bad slice")
 
-		return logvec._make(rspan(start = index.start, end = index.stop))
+		return factory(rspan(start = index.start, end = index.stop))
+
+	def __getitem__(cls, index):
+		"""Create type with given range.
+
+		Note that indices go from high to low and slices are
+		inclusive instead of exclusive. Therefore self[31:0]
+		returns a 32-element vector type.
+		"""
+
+		return logvec._make_type(index)
 
 	def _convert(cls, value):
 		try:
@@ -69,12 +100,12 @@ class _GenericLogvecType(type):
 
 		return result
 
-	def __call__(cls, value):
+	def __call__(cls, value, factory = None):
 		if isinstance(value, cls):
 			return value
 		elif not isinstance(value, logvec):
 			value = cls._convert(value)
-		cls = cls[len(value) - 1:0]
+		cls = cls._make_type(rspan(start = len(value) - 1, end = 0), factory = factory)
 
 		return cls.__new__(cls, value)
 
@@ -109,8 +140,6 @@ class _LogvecType(_GenericLogvecType):
 
 @export
 class logvec(tuple, metaclass = _GenericLogvecType):
-	_span = None
-
 	def __new__(cls, value):
 		assert cls._span is not None
 		return tuple.__new__(cls, tuple(value))
@@ -127,7 +156,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		elif fmt == 'o':
 			bits = 3
 		elif fmt == 'd' or fmt == 'n':
-			return str(self.unsigned)
+			return str(int(self.unsigned))
 		elif fmt == 'x' or fmt == 'X':
 			bits = 4
 		else:
@@ -137,7 +166,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			return '0'
 		elif len(self) == bits:
 			try:
-				return format(self.unsigned, fmt)
+				return format(int(self.unsigned), fmt)
 			except ValueError:
 				return 'X' if fmt == 'X' else 'x'
 
@@ -167,33 +196,39 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			if len(result) == 0:
 				result = logvec.empty
 			else:
-				result = logvec[self._span.rmap(index)](result)
+				ty = logvec._make_type(self._span.rmap(index), factory = self._factory)
+				result = ty(result)
 		return result
 
-	def __int__(self):
-		"""Unsigned integer value of self."""
-
-		return self.unsigned
-
-	@property
-	def unsigned(self):
-		"""Unsigned integer value of self."""
-
+	@staticmethod
+	def _unsigned(obj):
 		value = 0
-		for bit in self:
+		for bit in obj:
 			value <<= 1
 			if bit is logic.one:
 				value += 1
 			elif bit is not logic.zero:
-				raise ValueError("{self!r}")
+				raise ValueError("{obj!r}")
 		return value
 
-	@property
-	def signed(self):
-		"""Signed integer value (as two's complement) of self."""
+	unsigned = type_property()
+	signed = type_property()
 
-		value = self.unsigned
-		return value - 2 ** len(self) if self[-1] else value
+	@unsigned.type
+	def unsigned(cls):
+		return logvec._make_unsigned(cls._span)
+
+	@unsigned.value
+	def unsigned(self):
+		return type(self).unsigned(self)
+
+	@signed.type
+	def signed(cls):
+		return logvec._make_signed(cls._span)
+
+	@signed.value
+	def signed(self):
+		return type(self).signed(self)
 
 	def __eq__(self, other):
 		try:
@@ -215,10 +250,37 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		return NotImplemented if eq is NotImplemented else not eq
 
 	@staticmethod
+	def _coerce(obj, other):
+		if not isinstance(obj, logvec):
+			if isinstance(other, logvec):
+				obj = logvec(obj, type(other)._factory)
+			else:
+				obj = logvec(obj)
+		return obj
+
+	@staticmethod
+	def _get_factory(*objs):
+		factory = logvec._make_logvec
+		default = factory
+		for obj in objs:
+			if obj._factory != factory:
+				if factory == default:
+					factory = obj._factory
+				elif obj._factory != default:
+					return None
+		return factory
+
+	@staticmethod
 	def _apply(oper, left, right):
 		try:
-			left, right = logvec(left), logvec(right)
-			ty = type(left) if len(left) >= len(right) else type(right)
+			left, right = logvec._coerce(left, right), logvec._coerce(right, left)
+			factory = logvec._get_factory(left, right)
+			if factory is None:
+				return NotImplemented
+			ty = factory(
+				left._span \
+				if len(left._span) >= len(right._span) else \
+				right._span)
 			return logvec.__new__(ty, (oper(l, r) for l, r in zip(ty(left), ty(right))))
 		except AttributeError:
 			return NotImplemented
@@ -271,7 +333,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			return self
 		if amount >= len(self):
 			return type(self)(0)
-		return self[-(amount + 1):] + (logic(0),) * amount
+		return logvec._concat(self[-(amount + 1):], (logic(0),) * amount)
 
 	def __lshift__(self, amount):
 		return self.shift_left(amount)
@@ -282,7 +344,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		if amount < 0:
 			raise ValueError(f"{amount!r}: negative shift count")
 		amount %= len(self)
-		return self if amount == 0 else self[-(amount + 1):] + self[:-amount]
+		return self if amount == 0 else logvec._concat(self[-(amount + 1):], self[:-amount])
 
 
 	def shift_right(self, amount):
@@ -294,7 +356,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			return self
 		if amount >= len(self):
 			return type(self)(0)
-		return (logic(0),) * amount + self[:amount]
+		return logvec._concat((logic(0),) * amount, self[:amount])
 
 	def __rshift__(self, amount):
 		return self.shift_right(amount)
@@ -305,12 +367,17 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		if amount < 0:
 			raise ValueError(f"{amount!r}: negative shift count")
 		amount %= len(self)
-		return self if amount == 0 else self[amount - 1:] + self[:amount]
+		return self if amount == 0 else logvec._concat(self[amount - 1:], self[:amount])
 
 	@staticmethod
 	def _concat(left, right):
 		try:
-			return logvec((*logvec(left), *logvec(right)))
+			left, right = logvec._coerce(left, right), logvec._coerce(right, left)
+			factory = logvec._get_factory(left, right)
+			if factory is None:
+				return NotImplemented
+			ty = factory(rspan(start = len(left._span) + len(right._span) - 1, end = 0))
+			return tuple.__new__(ty, (*left, *right))
 		except AttributeError:
 			return NotImplemented
 		except TypeError:
@@ -337,3 +404,64 @@ _logvec0.__name__ = f"{logvec.__name__}.empty"
 _logvec0.__qualname__ = f"{logvec.__qualname__}.empty"
 
 logvec.empty = tuple.__new__(_logvec0, ())
+
+class unsigned_logvec(logvec):
+	def __eq__(self, other):
+		try:
+			if isinstance(other, logvec):
+				other = other.unsigned
+			return super().__eq__(other)
+		except TypeError:
+			return NotImplemented
+
+	def __int__(self):
+		"""Unsigned integer value of self."""
+
+		return logvec._unsigned(self)
+
+	def __index__(self):
+		return self.__int__()
+
+	def __format__(self, fmt):
+		if fmt == 'd' or fmt == 'n':
+			return format(int(self), fmt)
+		return super().__format__(fmt)
+
+	@property
+	def unsigned(self):
+		return self
+
+	@property
+	def signed(self):
+		raise TypeError("unsigned value")
+
+class signed_logvec(logvec):
+	def __eq__(self, other):
+		try:
+			if isinstance(other, logvec):
+				other = other.signed
+			return super().__eq__(other)
+		except TypeError as ex:
+			return NotImplemented
+
+	def __int__(self):
+		"""Signed integer value of self."""
+
+		value = logvec._unsigned(self)
+		return value - 2 ** len(self) if self[-1] else value
+
+	def __index__(self):
+		return self.__int__()
+
+	def __format__(self, fmt):
+		if fmt == 'd' or fmt == 'n':
+			return format(int(self), fmt)
+		return super().__format__(fmt)
+
+	@property
+	def unsigned(self):
+		raise TypeError("signed value")
+
+	@property
+	def signed(self):
+		return self

@@ -161,3 +161,26 @@ def join(*iterators, key = None, select = None, combine = None):
 		for i in range(len(iterators)):
 			if actual_key(current[i]) == group:
 				current[i] = next(iterators[i], end)
+
+
+class type_property:
+	"""Property which evaluates to a type when read from the type and to
+	a value when read from an object.
+	"""
+
+	__slots__ = '__name__', '__qualname__', '_type_fun', '_value_fun'
+
+	def __get__(self, obj, owner):
+		return self._value_fun(obj) if obj is not None else self._type_fun(owner)
+
+	def __set_name__(self, owner, name):
+		self.__name__ = name
+		self.__qualname__ = owner.__name__ + '.' + name
+
+	def type(self, fun):
+		self._type_fun = fun
+		return self
+
+	def value(self, fun):
+		self._value_fun = fun
+		return self
