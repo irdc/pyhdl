@@ -21,10 +21,18 @@ from ._lib import export, makefun, ReadOnlyDict, timestamp, join
 class Signal:
 	__slots__ = '_name', '_type', '_default'
 
-	def __init__(self, name, type, default):
+	def __init__(self, name, ty, default):
 		self._name = name
-		self._type = type
-		self._default = default
+		self._type = ty
+		self._default = ty(default) \
+			if isinstance(ty, type) \
+			and type(default) is not ty \
+			and default is not None else \
+			default
+
+	@property
+	def name(self):
+		return self._name
 
 	@property
 	def type(self):
@@ -37,12 +45,6 @@ class Signal:
 		if self._default is not None:
 			return copy.deepcopy(self._default)
 		return self._type()
-
-	def get(self, obj):
-		return getattr(obj, self._name)
-
-	def set(self, obj, value):
-		setattr(obj, self._name, value)
 
 
 class Block:
@@ -158,7 +160,7 @@ class Part(metaclass = PartMeta):
 		"""Get all direct child parts."""
 
 		for signal in self.signals.values():
-			value = signal.get(obj)
+			value = getattr(obj, signal.name)
 			try:
 				Part(type(value))
 				yield value
@@ -227,7 +229,7 @@ def part(obj = None):
 			for attr, signal
 			in join(
 				annotations.items(),
-				attrs.items(),
+				((k, v) for k, v in attrs.items() if issignal(v)),
 				key = lambda x: x[0],
 				select = lambda x: x[1],
 				combine = Signal)
@@ -262,7 +264,7 @@ def part(obj = None):
 			('self', '*args', '**kwargs'),
 			'\n'.join((
 			'for signal in Part(type(self)).signals.values():',
-			'\tsignal.set(self, signal.default)',
+			'\tsuper().__setattr__(signal.name, signal.default)',
 			'return orig_init(self, *args, **kwargs)'
 			)),
 			globals = sys.modules[cls.__module__].__dict__,
@@ -295,9 +297,10 @@ def part(obj = None):
 			'\t\tvalue = attr_type(value)',
 			'except KeyError:',
 			'\traise AttributeError(name)',
-			'if (observer := Part.current_observer) is not None:',
-			'\tobserver.__part_setattr__(self, name, value)',
-			'super().__setattr__(name, value)',
+			'if super().__getattribute__(name) != value:',
+			'\tif (observer := Part.current_observer) is not None:',
+			'\t\tobserver.__part_setattr__(self, name, value)',
+			'\tsuper().__setattr__(name, value)',
 			)),
 			globals = sys.modules[cls.__module__].__dict__,
 			locals = {'__class__': cls, 'Part': Part})
