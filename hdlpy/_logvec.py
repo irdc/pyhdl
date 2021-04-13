@@ -24,54 +24,21 @@ from ._span import rspan
 
 class _GenericLogvecType(type):
 	@cache
-	def _make_logvec(cls, span):
+	def _make_type(cls, *args):
 		class logvec(cls, metaclass = _LogvecType):
-			_factory = cls._make_logvec
-			_span = span
+			__origin__ = cls
+			__args__ = args
 
-		logvec.__name__ = f"{cls.__name__}[{span}]"
-		logvec.__qualname__ = f"{cls.__qualname__}[{span}]"
+		args = ', '.join((str(a) for a in args))
+		if '.' in cls.__qualname__:
+			prefix = cls.__qualname__.rsplit(sep = '.', maxsplit = 1)[0] + '.'
+		else:
+			prefix = ''
+
+		logvec.__name__ = cls._name_fmt.format(args)
+		logvec.__qualname__ = prefix + cls._name_fmt.format(args)
 		logvec.__module__ = cls.__module__
 		return logvec
-
-	@cache
-	def _make_unsigned(cls, span):
-		class unsigned(unsigned_logvec, metaclass = _LogvecType):
-			_factory = cls._make_unsigned
-			_span = span
-
-		unsigned.__name__ = f"{cls.__name__}[{span}].unsigned"
-		unsigned.__qualname__ = f"{cls.__qualname__}[{span}].unsigned"
-		unsigned.__module__ = cls.__module__
-		return unsigned
-
-	@cache
-	def _make_signed(cls, span):
-		class signed(signed_logvec, metaclass = _LogvecType):
-			_factory = cls._make_signed
-			_span = span
-
-		signed.__name__ = f"{cls.__name__}[{span}].signed"
-		signed.__qualname__ = f"{cls.__qualname__}[{span}].signed"
-		signed.__module__ = cls.__module__
-		return signed
-
-	def _make_type(cls, index, factory = None):
-		if factory is None:
-			factory = logvec._make_logvec
-		if type(index) is rspan:
-			return factory(index)
-		if type(index) is not slice:
-			raise ValueError(f"{index!r}: not a slice")
-		if index.start is None \
-		or index.start < 0 \
-		or index.stop is None \
-		or index.stop < 0 \
-		or index.start < index.stop \
-		or index.step is not None:
-			raise ValueError(f"{index!r}: bad slice")
-
-		return factory(rspan(start = index.start, end = index.stop))
 
 	def __getitem__(cls, index):
 		"""Create type with given range.
@@ -81,7 +48,19 @@ class _GenericLogvecType(type):
 		returns a 32-element vector type.
 		"""
 
-		return logvec._make_type(index)
+		if type(index) is not rspan:
+			if type(index) is not slice:
+				raise ValueError(f"{index!r}: not a slice")
+			if index.start is None \
+			or index.start < 0 \
+			or index.stop is None \
+			or index.stop < 0 \
+			or index.start < index.stop \
+			or index.step is not None:
+				raise ValueError(f"{index!r}: bad slice")
+			index = rspan(start = index.start, end = index.stop)
+
+		return cls._make_type(index)
 
 	def _convert(cls, value):
 		try:
@@ -100,12 +79,12 @@ class _GenericLogvecType(type):
 
 		return result
 
-	def __call__(cls, value, factory = None):
+	def __call__(cls, value):
 		if isinstance(value, cls):
 			return value
 		elif not isinstance(value, logvec):
 			value = cls._convert(value)
-		cls = cls._make_type(rspan(start = len(value) - 1, end = 0), factory = factory)
+		cls = cls._generic[len(value) - 1:0]
 
 		return cls.__new__(cls, value)
 
@@ -140,6 +119,8 @@ class _LogvecType(_GenericLogvecType):
 
 @export
 class logvec(tuple, metaclass = _GenericLogvecType):
+	_name_fmt = 'logvec[{0}]'
+
 	@staticmethod
 	def _unsigned(obj):
 		value = 0
@@ -155,34 +136,30 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def _coerce(obj, other):
 		if not isinstance(obj, logvec):
 			if isinstance(other, logvec):
-				obj = logvec(obj, type(other)._factory)
+				obj = type(other)._generic(obj)
 			else:
 				obj = logvec(obj)
 		return obj
 
 	@staticmethod
-	def _get_factory(*objs):
-		factory = logvec._make_logvec
-		default = factory
+	def _get_generic(*objs):
+		generic = logvec
 		for obj in objs:
-			if obj._factory != factory:
-				if factory == default:
-					factory = obj._factory
-				elif obj._factory != default:
-					return None
-		return factory
+			if obj._generic != generic:
+				if generic == logvec:
+					generic = obj._generic
+				elif obj._generic != logvec:
+					raise ValueError
+		return generic
 
 	@staticmethod
 	def _apply(oper, left, right):
 		try:
 			left, right = logvec._coerce(left, right), logvec._coerce(right, left)
-			factory = logvec._get_factory(left, right)
-			if factory is None:
-				return NotImplemented
-			ty = factory(
-				left._span \
-				if len(left._span) >= len(right._span) else \
-				right._span)
+			generic = logvec._get_generic(left, right)
+			ty = generic[left._span
+				if len(left._span) >= len(right._span) else
+				right._span]
 			return logvec.__new__(ty, (oper(l, r) for l, r in zip(ty(left), ty(right))))
 		except AttributeError:
 			return NotImplemented
@@ -195,10 +172,8 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def _concat(left, right):
 		try:
 			left, right = logvec._coerce(left, right), logvec._coerce(right, left)
-			factory = logvec._get_factory(left, right)
-			if factory is None:
-				return NotImplemented
-			ty = factory(rspan(start = len(left._span) + len(right._span) - 1, end = 0))
+			generic = logvec._get_generic(left, right)
+			ty = generic[len(left._span) + len(right._span) - 1:0]
 			return tuple.__new__(ty, (*left, *right))
 		except AttributeError:
 			return NotImplemented
@@ -210,6 +185,26 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def __new__(cls, value):
 		assert cls._span is not None
 		return tuple.__new__(cls, tuple(value))
+
+	_generic = type_property()
+	_span = type_property()
+
+	@_generic.type
+	def _generic(cls):
+		return getattr(cls, '__origin__', cls)
+
+	@_generic.value
+	def _generic(self):
+		return type(self)._generic
+
+	@_span.type
+	def _span(cls):
+		args = getattr(cls, '__args__', None)
+		return args[0] if args is not None else None
+
+	@_span.value
+	def _span(self):
+		return type(self)._span
 
 	def __repr__(self):
 		return f"<{type(self).__name__} '{self!s}'>"
@@ -263,8 +258,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			if len(result) == 0:
 				result = logvec.empty
 			else:
-				ty = logvec._make_type(self._span.rmap(index), factory = self._factory)
-				result = ty(result)
+				result = self._generic[self._span.rmap(index)](result)
 		return result
 
 	unsigned = type_property()
@@ -272,7 +266,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 
 	@unsigned.type
 	def unsigned(cls):
-		return logvec._make_unsigned(cls._span)
+		return unsigned_logvec[cls._span]
 
 	@unsigned.value
 	def unsigned(self):
@@ -280,7 +274,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 
 	@signed.type
 	def signed(cls):
-		return logvec._make_signed(cls._span)
+		return signed_logvec[cls._span]
 
 	@signed.value
 	def signed(self):
@@ -397,7 +391,8 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 
 
 class _logvec0(logvec):
-	_span = rspan.empty
+	__origin__ = logvec
+	__args__ = (rspan.empty,)
 	def __new__(cls):
 		return logvec.empty
 _logvec0.__name__ = f"{logvec.__name__}.empty"
@@ -406,6 +401,8 @@ _logvec0.__qualname__ = f"{logvec.__qualname__}.empty"
 logvec.empty = tuple.__new__(_logvec0, ())
 
 class unsigned_logvec(logvec):
+	_name_fmt = 'logvec[{0}].unsigned'
+
 	def __eq__(self, other):
 		try:
 			if isinstance(other, logvec):
@@ -436,6 +433,8 @@ class unsigned_logvec(logvec):
 		raise TypeError("unsigned value")
 
 class signed_logvec(logvec):
+	_name_fmt = 'logvec[{0}].signed'
+
 	def __eq__(self, other):
 		try:
 			if isinstance(other, logvec):
