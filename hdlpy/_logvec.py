@@ -97,7 +97,7 @@ class _LogvecType(_GenericLogvecType):
 		result = super()._convert(value)
 
 		if len(result) < len(cls._span):
-			result = (logic(0),) * (len(cls._span) - len(result)) + result
+			result = (cls._extend_with(result[-1]),) * (len(cls._span) - len(result)) + result
 		elif len(result) > len(cls._span):
 			raise ValueError(f"{value!r}: too long for {cls.__name__}")
 
@@ -122,6 +122,10 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	_name_fmt = 'logvec[{0}]'
 
 	@staticmethod
+	def _extend_with(val):
+		return logic(0)
+
+	@staticmethod
 	def _unsigned(obj):
 		value = 0
 		for bit in obj:
@@ -133,53 +137,51 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		return value
 
 	@staticmethod
-	def _coerce(obj, other):
-		if not isinstance(obj, logvec):
-			if isinstance(other, logvec):
-				obj = type(other)._generic(obj)
-			else:
-				obj = logvec(obj)
+	def _same_types(left, right):
+		"""Ensure left and right are of the same type (excluding length)."""
+
+		if not isinstance(left, logvec):
+			left = logvec(left)
+		if not isinstance(right, logvec):
+			right = logvec(right)
+
+		if type(left)._generic == type(right)._generic:
+			return left, right
+		elif type(left)._generic == logvec \
+		and type(right)._generic != logvec:
+			return right._generic[left._span](left), right
+		elif type(left)._generic != logvec \
+		and type(right)._generic == logvec:
+			return left, left._generic[right._span](right)
+		else:
+			raise ValueError(f"bad operation for {left!r} and {right!r}")
+
+	@staticmethod
+	def _enlarge(obj, new_len):
+		if len(obj) < new_len:
+			obj = obj._generic[obj._span.start + new_len - len(obj):obj._span.end](obj)
 		return obj
 
 	@staticmethod
-	def _get_generic(*objs):
-		generic = logvec
-		for obj in objs:
-			if obj._generic != generic:
-				if generic == logvec:
-					generic = obj._generic
-				elif obj._generic != logvec:
-					raise ValueError
-		return generic
+	def _same_length(left, right):
+		left, right = logvec._same_types(left, right)
+		return logvec._enlarge(left, len(right)), logvec._enlarge(right, len(left))
 
 	@staticmethod
 	def _apply(oper, left, right):
 		try:
-			left, right = logvec._coerce(left, right), logvec._coerce(right, left)
-			generic = logvec._get_generic(left, right)
-			ty = generic[left._span
-				if len(left._span) >= len(right._span) else
-				right._span]
-			return logvec.__new__(ty, (oper(l, r) for l, r in zip(ty(left), ty(right))))
-		except AttributeError:
-			return NotImplemented
-		except TypeError:
-			return NotImplemented
-		except ValueError:
+			left, right = logvec._same_length(left, right)
+			return logvec.__new__(type(left), (oper(l, r) for l, r in zip(left, right)))
+		except (TypeError, ValueError):
 			return NotImplemented
 
 	@staticmethod
 	def _concat(left, right):
 		try:
-			left, right = logvec._coerce(left, right), logvec._coerce(right, left)
-			generic = logvec._get_generic(left, right)
-			ty = generic[len(left._span) + len(right._span) - 1:0]
+			left, right = logvec._same_types(left, right)
+			ty = left._generic[len(left._span) + len(right._span) - 1:0]
 			return tuple.__new__(ty, (*left, *right))
-		except AttributeError:
-			return NotImplemented
-		except TypeError:
-			return NotImplemented
-		except ValueError:
+		except (TypeError, ValueError):
 			return NotImplemented
 
 	def __new__(cls, value):
@@ -288,11 +290,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 					for a, b in zip(self, (b for b in other if b != '_'))
 				)
 			return super().__eq__(type(self)(other))
-		except AttributeError:
-			return NotImplemented
-		except TypeError:
-			return NotImplemented
-		except ValueError:
+		except (TypeError, ValueError):
 			return NotImplemented
 
 	def __ne__(self, other):
@@ -435,12 +433,16 @@ class unsigned_logvec(logvec):
 class signed_logvec(logvec):
 	_name_fmt = 'logvec[{0}].signed'
 
+	@staticmethod
+	def _extend_with(val):
+		return val
+
 	def __eq__(self, other):
 		try:
 			if isinstance(other, logvec):
 				other = other.signed
 			return super().__eq__(other)
-		except TypeError as ex:
+		except TypeError:
 			return NotImplemented
 
 	def __int__(self):
