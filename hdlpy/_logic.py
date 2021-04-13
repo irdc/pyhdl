@@ -72,6 +72,13 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 			raise ValueError(fmt)
 		return str(self)
 
+	def __int__(self):
+		if self is logic.zero:
+			return 0
+		if self is logic.one:
+			return 1
+		raise ValueError(f"{self!r}")
+
 	def __eq__(self, other):
 		try:
 			return (type(other) is str and other == '-') or self is logic(other)

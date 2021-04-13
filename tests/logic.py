@@ -110,6 +110,14 @@ class test_logic(unittest.TestCase):
 				with self.assertRaises(ValueError):
 					format(logic.zero, fmt)
 
+	def test_int(self):
+		self.assertEqual(0, int(logic(0)))
+		self.assertEqual(1, int(logic(1)))
+		with self.assertRaises(ValueError):
+			int(logic('Z'))
+		with self.assertRaises(ValueError):
+			int(logic('X'))
+
 	def test_eq(self):
 		tests = (
 			(logic.zero, logic.zero, True),
