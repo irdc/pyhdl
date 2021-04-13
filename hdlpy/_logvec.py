@@ -420,6 +420,11 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def shift_left(self, amount):
 		"""Logically shift left by amount."""
 
+		if type(amount) is not int:
+			try:
+				amount = amount.__index__()
+			except:
+				raise ValueError(amount)
 		if amount < 0:
 			raise ValueError(f"{amount!r}: negative shift count")
 		if amount == 0:
@@ -434,6 +439,11 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def rotate_left(self, amount):
 		"""Rotate left by amount."""
 
+		if type(amount) is not int:
+			try:
+				amount = amount.__index__()
+			except:
+				raise ValueError(amount)
 		if amount < 0:
 			raise ValueError(f"{amount!r}: negative shift count")
 		amount %= len(self)
@@ -443,6 +453,11 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def shift_right(self, amount):
 		"""Logically shift right by amount."""
 
+		if type(amount) is not int:
+			try:
+				amount = amount.__index__()
+			except:
+				raise ValueError(amount)
 		if amount < 0:
 			raise ValueError(f"{amount!r}: negative shift count")
 		if amount == 0:
@@ -457,6 +472,11 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def rotate_right(self, amount):
 		"""Rotate right by amount."""
 
+		if type(amount) is not int:
+			try:
+				amount = amount.__index__()
+			except:
+				raise ValueError(amount)
 		if amount < 0:
 			raise ValueError(f"{amount!r}: negative shift count")
 		amount %= len(self)

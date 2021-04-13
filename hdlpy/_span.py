@@ -97,8 +97,11 @@ class span(_base_span):
 		elif type(index) is slice:
 			stop = self.map(index.stop if index.stop is not None else self.end) + 1
 			return slice(self.map(index.start if index.start is not None else self.start), None if stop == len(self) else stop)
-
-		raise ValueError(f"{index!r}: bad index")
+		else:
+			try:
+				return self.map(index.__index__())
+			except:
+				raise ValueError(f"{index!r}: bad index")
 
 	def rmap(self, index):
 		"""Translate index in reverse."""
@@ -116,6 +119,11 @@ class span(_base_span):
 			return slice(
 				self.rmap(index.start if index.start is not None else self.start),
 				self.rmap((index.stop if index.stop is not None else len(self)) - 1))
+		else:
+			try:
+				return self.rmap(index.__index__())
+			except:
+				raise ValueError(f"{index!r}: bad index")
 
 		raise ValueError(f"{index!r}: bad index")
 
@@ -164,6 +172,11 @@ class rspan(_base_span):
 		elif type(index) is slice:
 			stop = self.map(index.stop if index.stop is not None else self.end) + 1
 			return slice(self.map(index.start if index.start is not None else self.start), None if stop == len(self) else stop)
+		else:
+			try:
+				return self.map(index.__index__())
+			except:
+				raise ValueError(f"{index!r}: bad index")
 
 		raise ValueError(f"{index!r}: bad index")
 
@@ -183,6 +196,11 @@ class rspan(_base_span):
 			return slice(
 				self.rmap(index.start if index.start is not None else self.start),
 				self.rmap((index.stop if index.stop is not None else len(self)) - 1))
+		else:
+			try:
+				return self.rmap(index.__index__())
+			except:
+				raise ValueError(f"{index!r}: bad index")
 
 		raise ValueError(f"{index!r}: bad index")
 
