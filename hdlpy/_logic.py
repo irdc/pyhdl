@@ -84,6 +84,28 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 		except ValueError:
 			return NotImplemented
 
+	def _cmp(self, other):
+		try:
+			return ord(self._value_) - ord(other._value_)
+		except AttributeError:
+			return NotImplemented
+
+	def __lt__(self, other):
+		cmp = self._cmp(other)
+		return NotImplemented if cmp is NotImplemented else cmp < 0
+
+	def __le__(self, other):
+		cmp = self._cmp(other)
+		return NotImplemented if cmp is NotImplemented else cmp <= 0
+
+	def __gt__(self, other):
+		cmp = self._cmp(other)
+		return NotImplemented if cmp is NotImplemented else cmp > 0
+
+	def __ge__(self, other):
+		cmp = self._cmp(other)
+		return NotImplemented if cmp is NotImplemented else cmp >= 0
+
 	def __bool__(self):
 		"""self is logic.one"""
 

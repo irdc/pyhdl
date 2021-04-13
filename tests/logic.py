@@ -204,6 +204,67 @@ class test_logic(unittest.TestCase):
 				actual = logic.zero.__ne__(other)
 				self.assertIs(NotImplemented, actual)
 
+	def test_cmp(self):
+		tests = (
+			(logic.zero, logic.zero, False, False),
+			(logic.zero, logic.one, True, False),
+			(logic.zero, logic.hi_z, True, False),
+			(logic.zero, logic.unknown, True, False),
+
+			(logic.one, logic.zero, False, True),
+			(logic.one, logic.one, False, False),
+			(logic.one, logic.hi_z, True, False),
+			(logic.one, logic.unknown, True, False),
+
+			(logic.hi_z, logic.zero, False, True),
+			(logic.hi_z, logic.one, False, True),
+			(logic.hi_z, logic.hi_z, False, False),
+			(logic.hi_z, logic.unknown, False, True),
+
+			(logic.unknown, logic.zero, False, True),
+			(logic.unknown, logic.one, False, True),
+			(logic.unknown, logic.hi_z, True, False),
+			(logic.unknown, logic.unknown, False, False),
+		)
+
+		for a, b, lt, gt in tests:
+			with self.subTest(fun = '__lt__', a = a, b = b, expected = lt):
+				actual = a.__lt__(b)
+				self.assertEqual(lt, actual)
+			with self.subTest(fun = '__ge__', a = a, b = b, expected = not lt):
+				actual = a.__ge__(b)
+				self.assertEqual(not lt, actual)
+			with self.subTest(fun = '__gt__', a = a, b = b, expected = gt):
+				actual = a.__gt__(b)
+				self.assertEqual(gt, actual)
+			with self.subTest(fun = '__le__', a = a, b = b, expected = not gt):
+				actual = a.__le__(b)
+				self.assertEqual(not gt, actual)
+
+	def test_cmp_notimplemented(self):
+		tests = (
+			None,
+			2,
+			'',
+			'supercalifragilisticexpialidocious',
+			(),
+			object(),
+		)
+
+		for other in tests:
+			with self.subTest(fun = '__lt__', other = other):
+				actual = logic.zero.__lt__(other)
+				self.assertIs(NotImplemented, actual)
+			with self.subTest(fun = '__ge__', other = other):
+				actual = logic.zero.__ge__(other)
+				self.assertIs(NotImplemented, actual)
+			with self.subTest(fun = '__gt__', other = other):
+				actual = logic.zero.__gt__(other)
+				self.assertIs(NotImplemented, actual)
+			with self.subTest(fun = '__le__', other = other):
+				actual = logic.zero.__le__(other)
+				self.assertIs(NotImplemented, actual)
+
 	def test_bool(self):
 		tests = (
 			(logic.zero, False),

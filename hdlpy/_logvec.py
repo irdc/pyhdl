@@ -184,6 +184,17 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		except (TypeError, ValueError):
 			return NotImplemented
 
+	@staticmethod
+	def _cmp(left, right):
+		try:
+			left, right = logvec._same_length(left, right)
+			for l, r in zip(left, right):
+				if l != r:
+					return -1 if l < r else 1
+			return 0
+		except (TypeError, ValueError):
+			return NotImplemented
+
 	def __new__(cls, value):
 		assert cls._span is not None
 		return tuple.__new__(cls, tuple(value))
@@ -430,6 +441,23 @@ class unsigned_logvec(logvec):
 	def signed(self):
 		raise TypeError("unsigned value")
 
+	def __lt__(self, other):
+		cmp = logvec._cmp(self, other)
+		return NotImplemented if cmp is NotImplemented else cmp < 0
+
+	def __le__(self, other):
+		cmp = logvec._cmp(self, other)
+		return NotImplemented if cmp is NotImplemented else cmp <= 0
+
+	def __gt__(self, other):
+		cmp = logvec._cmp(self, other)
+		return NotImplemented if cmp is NotImplemented else cmp > 0
+
+	def __ge__(self, other):
+		cmp = logvec._cmp(self, other)
+		return NotImplemented if cmp is NotImplemented else cmp >= 0
+
+
 class signed_logvec(logvec):
 	_name_fmt = 'logvec[{0}].signed'
 
@@ -466,3 +494,34 @@ class signed_logvec(logvec):
 	@property
 	def signed(self):
 		return self
+
+	@staticmethod
+	def _cmp(left, right):
+		try:
+			left, right = logvec._same_types(left, right)
+			if left[-1] and not right[-1]:
+				return -1
+			elif not left[-1] and right[-1]:
+				return 1
+			cmp = logvec._cmp(left, right)
+			if cmp is NotImplemented:
+				return NotImplemented
+			return -cmp if left[-1] and right[-1] else cmp
+		except (TypeError, ValueError):
+			return NotImplemented
+
+	def __lt__(self, other):
+		cmp = signed_logvec._cmp(self, other)
+		return NotImplemented if cmp is NotImplemented else cmp < 0
+
+	def __le__(self, other):
+		cmp = signed_logvec._cmp(self, other)
+		return NotImplemented if cmp is NotImplemented else cmp <= 0
+
+	def __gt__(self, other):
+		cmp = signed_logvec._cmp(self, other)
+		return NotImplemented if cmp is NotImplemented else cmp > 0
+
+	def __ge__(self, other):
+		cmp = signed_logvec._cmp(self, other)
+		return NotImplemented if cmp is NotImplemented else cmp >= 0

@@ -8,6 +8,9 @@ def unsigned(val):
 def signed(val):
 	return val.signed if isinstance(val, logvec) else val
 
+def not_(val):
+	return NotImplemented if val is NotImplemented else not val
+
 class test_logvec(unittest.TestCase):
 	def assertEqual(self, first, second, msg = None):
 		if type(first) != type(second):
@@ -255,10 +258,9 @@ class test_logvec(unittest.TestCase):
 				actual = a.__eq__(b)
 				self.assertEqual(expected, actual)
 
-			expected = NotImplemented if expected is NotImplemented else not expected
-			with self.subTest(fun = '__ne__', a = a, b = b, expected = expected):
+			with self.subTest(fun = '__ne__', a = a, b = b, expected = not_(expected)):
 				actual = a.__ne__(b)
-				self.assertEqual(expected, actual)
+				self.assertEqual(not_(expected), actual)
 
 	def test_getitem(self):
 		tests = (
@@ -527,10 +529,41 @@ class test_logvec_unsigned(unittest.TestCase):
 				actual = a.__eq__(b)
 				self.assertEqual(expected, actual)
 
-			expected = NotImplemented if expected is NotImplemented else not expected
-			with self.subTest(fun = '__ne__', a = a, b = b, expected = expected):
+			with self.subTest(fun = '__ne__', a = a, b = b, expected = not_(expected)):
 				actual = a.__ne__(b)
-				self.assertEqual(expected, actual)
+				self.assertEqual(not_(expected), actual)
+
+	def test_cmp(self):
+		tests = (
+			(logvec(0).unsigned, logvec(0).unsigned, False, False),
+			(logvec(0).unsigned, logvec(1).unsigned, True, False),
+			(logvec(42).unsigned, 42, False, False),
+			(logvec(42).unsigned, 13, False, True),
+			(logvec(42).unsigned, logvec(42).unsigned, False, False),
+			(logvec(42).unsigned, logvec(13).unsigned, False, True),
+			(logvec[6:0](42).unsigned, logvec[6:0](-42).unsigned, True, False),
+			(logvec[6:0](42).unsigned, logvec[6:0](-13).unsigned, True, False),
+			(logvec[6:0](-42).unsigned, logvec[6:0](-42).unsigned, False, False),
+			(logvec[6:0](-42).unsigned, logvec[6:0](-13).unsigned, True, False),
+			(logvec[15:8](42).unsigned, logvec[7:0](42).unsigned, False, False),
+			(logvec[15:8](42).unsigned, logvec[7:0](13).unsigned, False, True),
+			(logvec[15:8](42).signed, logvec[7:0](42).unsigned, NotImplemented, NotImplemented),
+			(logvec[15:8](42).signed, logvec[7:0](13).unsigned, NotImplemented, NotImplemented),
+		)
+
+		for a, b, lt, gt in tests:
+			with self.subTest(fun = '__lt__', a = a, b = b, expected = lt):
+				actual = a.__lt__(b)
+				self.assertEqual(lt, actual)
+			with self.subTest(fun = '__ge__', a = a, b = b, expected = not_(lt)):
+				actual = a.__ge__(b)
+				self.assertEqual(not_(lt), actual)
+			with self.subTest(fun = '__gt__', a = a, b = b, expected = gt):
+				actual = a.__gt__(b)
+				self.assertEqual(gt, actual)
+			with self.subTest(fun = '__le__', a = a, b = b, expected = not_(gt)):
+				actual = a.__le__(b)
+				self.assertEqual(not_(gt), actual)
 
 	def test_int(self):
 		tests = (
@@ -606,10 +639,41 @@ class test_logvec_signed(unittest.TestCase):
 				actual = a.__eq__(b)
 				self.assertEqual(expected, actual)
 
-			expected = NotImplemented if expected is NotImplemented else not expected
-			with self.subTest(fun = '__ne__', a = a, b = b, expected = expected):
+			with self.subTest(fun = '__ne__', a = a, b = b, expected = not_(expected)):
 				actual = a.__ne__(b)
-				self.assertEqual(expected, actual)
+				self.assertEqual(not_(expected), actual)
+
+	def test_cmp(self):
+		tests = (
+			(logvec(0).signed, logvec(0).signed, False, False),
+			(logvec(0).signed, logvec(1).signed, False, True),
+			(logvec(42).signed, 42, False, False),
+			(logvec(42).signed, 13, False, True),
+			(logvec(42).signed, logvec(42).signed, False, False),
+			(logvec(42).signed, logvec(13).signed, False, True),
+			(logvec[6:0](42).signed, logvec[6:0](-42).signed, False, True),
+			(logvec[6:0](42).signed, logvec[6:0](-13).signed, False, True),
+			(logvec[6:0](-42).signed, logvec[6:0](-42).signed, False, False),
+			(logvec[6:0](-42).signed, logvec[6:0](-13).signed, False, True),
+			(logvec[15:8](42).signed, logvec[7:0](42).signed, False, False),
+			(logvec[15:8](42).signed, logvec[7:0](13).signed, False, True),
+			(logvec[15:8](42).signed, logvec[7:0](42).unsigned, NotImplemented, NotImplemented),
+			(logvec[15:8](42).signed, logvec[7:0](13).unsigned, NotImplemented, NotImplemented),
+		)
+
+		for a, b, lt, gt in tests:
+			with self.subTest(fun = '__lt__', a = a, b = b, expected = lt):
+				actual = a.__lt__(b)
+				self.assertEqual(lt, actual)
+			with self.subTest(fun = '__ge__', a = a, b = b, expected = not_(lt)):
+				actual = a.__ge__(b)
+				self.assertEqual(not_(lt), actual)
+			with self.subTest(fun = '__gt__', a = a, b = b, expected = gt):
+				actual = a.__gt__(b)
+				self.assertEqual(gt, actual)
+			with self.subTest(fun = '__le__', a = a, b = b, expected = not_(gt)):
+				actual = a.__le__(b)
+				self.assertEqual(not_(gt), actual)
 
 	def test_int(self):
 		tests = (
