@@ -107,7 +107,7 @@ class _LogvecType(_GenericLogvecType):
 		raise RuntimeError("not a generic type")
 
 	def __call__(cls, value = None):
-		if isinstance(value, cls):
+		if type(value) is cls:
 			return value
 		elif value is None:
 			value = (logic(),) * len(cls._span)
@@ -195,6 +195,65 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		except (TypeError, ValueError):
 			return NotImplemented
 
+	@staticmethod
+	def _add(left, right, carry = logic(0)):
+		try:
+			left, right = logvec._same_length(left, right)
+			result = []
+			for l, r in zip(reversed(left), reversed(right)):
+				result.append(l ^ r ^ carry)
+				carry = (carry & l) | (carry & r) | (l & r)
+			result.reverse()
+			return type(left)(result)
+		except (TypeError, ValueError):
+			return NotImplemented
+
+	@staticmethod
+	def _sub(left, right):
+		try:
+			left, right = logvec._same_length(left, right)
+			return logvec._add(left, ~right, logic(1))
+		except (TypeError, ValueError):
+			return NotImplemented
+
+	@staticmethod
+	def _mul(left, right):
+		try:
+			left, right = logvec._same_types(left, right)
+			ty = left._generic[len(left) + len(right) - 1:0]
+			result, right = ty(0), ty(right)
+			for l in reversed(left):
+				if l == logvec(1):
+					result += right
+				elif l != logvec(0):
+					return ty()
+				right <<= 1
+			return result
+		except (TypeError, ValueError):
+			return NotImplemented
+
+	@staticmethod
+	def _divmod(num, denom):
+		if denom == 0:
+			raise ValueError(denom)
+		try:
+			num, denom = logvec._same_length(num, denom)
+			bits = len(num)
+
+			quot = type(num)(0)
+			num = logvec._concat((logic(0),) * bits, num)
+			denom = logvec._concat(denom, (logic(0),) * bits)
+
+			for i in range(bits, 0, -1):
+				if num >= denom:
+					num -= denom
+					quot |= 2**i
+				denom >>= 1
+
+			return quot, num[-(bits + 1):]
+		except (TypeError, ValueError):
+			return NotImplemented, NotImplemented
+
 	def __new__(cls, value):
 		assert cls._span is not None
 		return tuple.__new__(cls, tuple(value))
@@ -274,8 +333,23 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 				result = self._generic[self._span.rmap(index)](result)
 		return result
 
+	def __reversed__(self):
+		"""reversed(self)"""
+
+		for i in range(len(self) - 1, -1, -1):
+			yield super().__getitem__(i)
+
+	vector = type_property()
 	unsigned = type_property()
 	signed = type_property()
+
+	@vector.type
+	def vector(cls):
+		return logvec[cls._span]
+
+	@vector.value
+	def vector(self):
+		return type(self).vector(self)
 
 	@unsigned.type
 	def unsigned(cls):
@@ -414,10 +488,10 @@ class unsigned_logvec(logvec):
 
 	def __eq__(self, other):
 		try:
-			if isinstance(other, logvec):
-				other = other.unsigned
+			if type(other) is not str:
+				self, other = logvec._same_types(self, other)
 			return super().__eq__(other)
-		except TypeError:
+		except (TypeError, ValueError):
 			return NotImplemented
 
 	def __int__(self):
@@ -437,10 +511,6 @@ class unsigned_logvec(logvec):
 	def unsigned(self):
 		return self
 
-	@property
-	def signed(self):
-		raise TypeError("unsigned value")
-
 	def __lt__(self, other):
 		cmp = logvec._cmp(self, other)
 		return NotImplemented if cmp is NotImplemented else cmp < 0
@@ -457,6 +527,56 @@ class unsigned_logvec(logvec):
 		cmp = logvec._cmp(self, other)
 		return NotImplemented if cmp is NotImplemented else cmp >= 0
 
+	def __add__(self, other):
+		"""self + other"""
+
+		return logvec._add(self, other)
+
+	def __radd__(self, other):
+		"""other + self"""
+
+		return logvec._add(other, self)
+
+	def __sub__(self, other):
+		"""self - other"""
+
+		return logvec._sub(self, other)
+
+	def __rsub__(self, other):
+		"""other - self"""
+
+		return logvec._sub(other, self)
+
+	def __mul__(self, other):
+		"""self * other"""
+
+		return logvec._mul(self, other)
+
+	def __rmul__(self, other):
+		"""other * self"""
+
+		return logvec._mul(other, self)
+
+	def __floordiv__(self, other):
+		"""self // other"""
+
+		return logvec._divmod(self, other)[0]
+
+	def __rfloordiv__(self, other):
+		"""other // self"""
+
+		return logvec._divmod(other, self)[0]
+
+	def __mod__(self, other):
+		"""self % other"""
+
+		return logvec._divmod(self, other)[1]
+
+	def __rmod__(self, other):
+		"""other % self"""
+
+		return logvec._divmod(other, self)[1]
+
 
 class signed_logvec(logvec):
 	_name_fmt = 'logvec[{0}].signed'
@@ -467,10 +587,10 @@ class signed_logvec(logvec):
 
 	def __eq__(self, other):
 		try:
-			if isinstance(other, logvec):
-				other = other.signed
+			if type(other) is not str:
+				self, other = logvec._same_types(self, other)
 			return super().__eq__(other)
-		except TypeError:
+		except (TypeError, ValueError):
 			return NotImplemented
 
 	def __int__(self):
@@ -486,10 +606,6 @@ class signed_logvec(logvec):
 		if fmt == 'd' or fmt == 'n':
 			return format(int(self), fmt)
 		return super().__format__(fmt)
-
-	@property
-	def unsigned(self):
-		raise TypeError("signed value")
 
 	@property
 	def signed(self):
@@ -525,3 +641,84 @@ class signed_logvec(logvec):
 	def __ge__(self, other):
 		cmp = signed_logvec._cmp(self, other)
 		return NotImplemented if cmp is NotImplemented else cmp >= 0
+
+	def __neg__(self):
+		"""-self"""
+
+		return ~self - 1
+
+	def __abs__(self):
+		"""abs(self)"""
+
+		return -self if self[-1] else self
+
+	def __add__(self, other):
+		"""self + other"""
+
+		return logvec._add(self, other)
+
+	def __radd__(self, other):
+		"""other + self"""
+
+		return logvec._add(other, self)
+
+	def __sub__(self, other):
+		"""self - other"""
+
+		return logvec._sub(self, other)
+
+	def __rsub__(self, other):
+		"""other - self"""
+
+		return logvec._sub(other, self)
+
+	@staticmethod
+	def _mul(left, right):
+		try:
+			left, right = logvec._same_types(left, right)
+			neg = left[-1] ^ right[-1]
+			result = logvec._mul(abs(left).unsigned, abs(right).unsigned).signed
+			return -result if neg else result
+		except (TypeError, ValueError):
+			return NotImplemented
+
+	def __mul__(self, other):
+		"""self * other"""
+
+		return signed_logvec._mul(self, other)
+
+	def __rmul__(self, other):
+		"""other * self"""
+
+		return signed_logvec._mul(other, self)
+
+	@staticmethod
+	def _divmod(left, right):
+		try:
+			left, right = logvec._same_types(left, right)
+			neg = left[-1] ^ right[-1]
+			quot, rem = logvec._divmod(abs(left).unsigned, abs(right).unsigned)
+			quot, rem = quot.signed, rem.signed
+			return -quot if neg else quot, -rem if left[-1] else rem
+		except (TypeError, ValueError):
+			return NotImplemented, NotImplemented
+
+	def __floordiv__(self, other):
+		"""self // other"""
+
+		return signed_logvec._divmod(self, other)[0]
+
+	def __rfloordiv__(self, other):
+		"""other // self"""
+
+		return signed_logvec._divmod(other, self)[0]
+
+	def __mod__(self, other):
+		"""self % other"""
+
+		return signed_logvec._divmod(self, other)[1]
+
+	def __rmod__(self, other):
+		"""other % self"""
+
+		return signed_logvec._divmod(other, self)[1]

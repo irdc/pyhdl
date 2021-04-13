@@ -507,6 +507,11 @@ class test_logvec(unittest.TestCase):
 				actual = a + b
 
 class test_logvec_unsigned(unittest.TestCase):
+	def assertEqual(self, first, second, msg = None):
+		if type(first) != type(second):
+			raise self.failureException(f"{type(first)!r} != {type(second)!r}")
+		return super().assertEqual(first, second, msg = msg)
+
 	def test_eq(self):
 		tests = (
 			(logvec(0).unsigned, logvec(0).unsigned, True),
@@ -615,8 +620,93 @@ class test_logvec_unsigned(unittest.TestCase):
 				actual = format(value.unsigned, 'n')
 				self.assertEqual(expected, actual)
 
+	def test_add(self):
+		tests = (
+			(logvec[7:0](13), logvec[7:0](42), logvec[7:0](55)),
+			(logvec[7:0](-3), logvec[7:0](-22), logvec[7:0](-25)),
+			(logvec[7:0](42), logvec[7:0]('00Z00001'), logvec[7:0]('0XX01011')),
+			(logvec[7:0](42), logvec[7:0]('00X00001'), logvec[7:0]('0XX01011')),
+		)
+
+		for a, b, expected in tests:
+			with self.subTest(fun = '__add__', a = a.unsigned, b = b.unsigned, expected = expected.unsigned):
+				actual = a.unsigned.__add__(b.unsigned)
+				self.assertEqual(expected.unsigned, actual)
+			with self.subTest(fun = '__radd__', a = a.unsigned, b = b.unsigned, expected = expected.unsigned):
+				actual = b.unsigned.__radd__(a.unsigned)
+				self.assertEqual(expected.unsigned, actual)
+
+	def test_sub(self):
+		tests = (
+			(logvec[7:0](13), logvec[7:0](42), logvec[7:0](-29)),
+			(logvec[7:0](-3), logvec[7:0](-22), logvec[7:0](19)),
+			(logvec[7:0](42), logvec[7:0]('00Z00001'), logvec[7:0]('00X01001')),
+			(logvec[7:0](42), logvec[7:0]('00X00001'), logvec[7:0]('00X01001')),
+		)
+
+		for a, b, expected in tests:
+			with self.subTest(fun = '__sub__', a = a.unsigned, b = b.unsigned, expected = expected.unsigned):
+				actual = a.unsigned.__sub__(b.unsigned)
+				self.assertEqual(expected.unsigned, actual)
+			with self.subTest(fun = '__rsub__', a = a.unsigned, b = b.unsigned, expected = expected.unsigned):
+				actual = b.unsigned.__rsub__(a.unsigned)
+				self.assertEqual(expected.unsigned, actual)
+
+	def test_mul(self):
+		tests = (
+			(logvec[7:0](13), logvec[7:0](42), logvec[15:0](546)),
+			(logvec[7:0](-13), logvec[7:0](42), logvec[15:0](10206)),
+			(logvec[7:0](13), logvec[7:0](-42), logvec[15:0](2782)),
+			(logvec[7:0](-13), logvec[7:0](-42), logvec[15:0](52002)),
+		)
+
+		for a, b, expected in tests:
+			with self.subTest(fun = '__mul__', a = a.unsigned, b = b.unsigned, expected = expected.unsigned):
+				actual = a.unsigned.__mul__(b.unsigned)
+				self.assertEqual(expected.unsigned, actual)
+			with self.subTest(fun = '__rmul__', a = a.unsigned, b = b.unsigned, expected = expected.unsigned):
+				actual = b.unsigned.__rmul__(a.unsigned)
+				self.assertEqual(expected.unsigned, actual)
+
+	def test_div(self):
+		tests = (
+			(logvec[15:0](1337), logvec[7:0](13), logvec[15:0](102)),
+			(logvec[15:0](1337), logvec[7:0](-13), logvec[15:0](4)),
+			(logvec[15:0](-1337), logvec[7:0](13), logvec[15:0](4938)),
+			(logvec[15:0](-1337), logvec[7:0](-13), logvec[15:0](264)),
+		)
+
+		for a, b, expected in tests:
+			with self.subTest(fun = '__floordiv__', a = a.unsigned, b = b.unsigned, expected = expected.unsigned):
+				actual = a.unsigned.__floordiv__(b.unsigned)
+				self.assertEqual(expected.unsigned, actual)
+			with self.subTest(fun = '__rfloordiv__', a = a.unsigned, b = b.unsigned, expected = expected.unsigned):
+				actual = b.unsigned.__rfloordiv__(a.unsigned)
+				self.assertEqual(expected.unsigned, actual)
+
+	def test_mod(self):
+		tests = (
+			(logvec[15:0](1337), logvec[7:0](13), logvec[15:0](11)),
+			(logvec[15:0](1337), logvec[7:0](-13), logvec[15:0](365)),
+			(logvec[15:0](-1337), logvec[7:0](13), logvec[15:0](5)),
+			(logvec[15:0](-1337), logvec[7:0](-13), logvec[15:0](47)),
+		)
+
+		for a, b, expected in tests:
+			with self.subTest(fun = '__mod__', a = a.unsigned, b = b.unsigned, expected = expected.unsigned):
+				actual = a.unsigned.__mod__(b.unsigned)
+				self.assertEqual(expected.unsigned, actual)
+			with self.subTest(fun = '__rmod__', a = a.unsigned, b = b.unsigned, expected = expected.unsigned):
+				actual = b.unsigned.__rmod__(a.unsigned)
+				self.assertEqual(expected.unsigned, actual)
+
 
 class test_logvec_signed(unittest.TestCase):
+	def assertEqual(self, first, second, msg = None):
+		if type(first) != type(second):
+			raise self.failureException(f"{type(first)!r} != {type(second)!r}")
+		return super().assertEqual(first, second, msg = msg)
+
 	def test_eq(self):
 		tests = (
 			(logvec(0).signed, logvec(0).signed, True),
@@ -726,3 +816,107 @@ class test_logvec_signed(unittest.TestCase):
 			with self.subTest(value = value, fmt = 'n', expected = expected):
 				actual = format(value.signed, 'n')
 				self.assertEqual(expected, actual)
+
+	def test_neg(self):
+		tests = (
+			(logvec(0).signed, logvec(0).signed),
+			(logvec(1).signed, logvec(1).signed),
+			(logvec[7:0](42).signed, logvec[7:0](-42).signed),
+			(logvec[7:0](-42).signed, logvec[7:0](42).signed),
+		)
+
+		for value, expected in tests:
+			actual = -value
+			self.assertEqual(expected, actual)
+
+	def test_abs(self):
+		tests = (
+			(logvec(0).signed, logvec(0).signed),
+			(logvec(1).signed, logvec(1).signed),
+			(logvec[7:0](42).signed, logvec[7:0](42).signed),
+			(logvec[7:0](-42).signed, logvec[7:0](42).signed),
+		)
+
+		for value, expected in tests:
+			actual = abs(value)
+			self.assertEqual(expected, actual)
+
+	def test_add(self):
+		tests = (
+			(logvec[7:0](13), logvec[7:0](42), logvec[7:0](55)),
+			(logvec[7:0](-3), logvec[7:0](-22), logvec[7:0](-25)),
+			(logvec[7:0](42), logvec[7:0]('00Z00001'), logvec[7:0]('0XX01011')),
+			(logvec[7:0](42), logvec[7:0]('00X00001'), logvec[7:0]('0XX01011')),
+		)
+
+		for a, b, expected in tests:
+			with self.subTest(fun = '__add__', a = a.signed, b = b.signed, expected = expected.signed):
+				actual = a.signed.__add__(b.signed)
+				self.assertEqual(expected.signed, actual)
+			with self.subTest(fun = '__radd__', a = a.signed, b = b.signed, expected = expected.signed):
+				actual = b.signed.__radd__(a.signed)
+				self.assertEqual(expected.signed, actual)
+
+	def test_sub(self):
+		tests = (
+			(logvec[7:0](13), logvec[7:0](42), logvec[7:0](-29)),
+			(logvec[7:0](-3), logvec[7:0](-22), logvec[7:0](19)),
+			(logvec[7:0](42), logvec[7:0]('00Z00001'), logvec[7:0]('00X01001')),
+			(logvec[7:0](42), logvec[7:0]('00X00001'), logvec[7:0]('00X01001')),
+		)
+
+		for a, b, expected in tests:
+			with self.subTest(fun = '__sub__', a = a.signed, b = b.signed, expected = expected.signed):
+				actual = a.signed.__sub__(b.signed)
+				self.assertEqual(expected.signed, actual)
+			with self.subTest(fun = '__rsub__', a = a.signed, b = b.signed, expected = expected.signed):
+				actual = b.signed.__rsub__(a.signed)
+				self.assertEqual(expected.signed, actual)
+
+	def test_mul(self):
+		tests = (
+			(logvec[7:0](13), logvec[7:0](42), logvec[15:0](546)),
+			(logvec[7:0](-13), logvec[7:0](42), logvec[15:0](-546)),
+			(logvec[7:0](13), logvec[7:0](-42), logvec[15:0](-546)),
+			(logvec[7:0](-13), logvec[7:0](-42), logvec[15:0](546)),
+		)
+
+		for a, b, expected in tests:
+			with self.subTest(fun = '__mul__', a = a.signed, b = b.signed, expected = expected.signed):
+				actual = a.signed.__mul__(b.signed)
+				self.assertEqual(expected.signed, actual)
+			with self.subTest(fun = '__rmul__', a = a.signed, b = b.signed, expected = expected.signed):
+				actual = b.signed.__rmul__(a.signed)
+				self.assertEqual(expected.signed, actual)
+
+	def test_div(self):
+		tests = (
+			(logvec[15:0](1337), logvec[7:0](13), logvec[15:0](102)),
+			(logvec[15:0](1337), logvec[7:0](-13), logvec[15:0](-102)),
+			(logvec[15:0](-1337), logvec[7:0](13), logvec[15:0](-102)),
+			(logvec[15:0](-1337), logvec[7:0](-13), logvec[15:0](102)),
+		)
+
+		for a, b, expected in tests:
+			with self.subTest(fun = '__floordiv__', a = a.signed, b = b.signed, expected = expected.signed):
+				actual = a.signed.__floordiv__(b.signed)
+				self.assertEqual(expected.signed, actual)
+			with self.subTest(fun = '__rfloordiv__', a = a.signed, b = b.signed, expected = expected.signed):
+				actual = b.signed.__rfloordiv__(a.signed)
+				self.assertEqual(expected.signed, actual)
+
+	def test_mod(self):
+		tests = (
+			(logvec[15:0](1337), logvec[7:0](13), logvec[15:0](11)),
+			(logvec[15:0](1337), logvec[7:0](-13), logvec[15:0](11)),
+			(logvec[15:0](-1337), logvec[7:0](13), logvec[15:0](-11)),
+			(logvec[15:0](-1337), logvec[7:0](-13), logvec[15:0](-11)),
+		)
+
+		for a, b, expected in tests:
+			with self.subTest(fun = '__mod__', a = a.signed, b = b.signed, expected = expected.signed):
+				actual = a.signed.__mod__(b.signed)
+				self.assertEqual(expected.signed, actual)
+			with self.subTest(fun = '__rmod__', a = a.signed, b = b.signed, expected = expected.signed):
+				actual = b.signed.__rmod__(a.signed)
+				self.assertEqual(expected.signed, actual)
