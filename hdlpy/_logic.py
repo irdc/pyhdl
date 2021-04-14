@@ -24,15 +24,6 @@ class _LogicEnumMeta(EnumMeta):
 		if type(value) is cls:
 			return value
 
-		if type(value) is bool:
-			return cls.zero if value == False else cls.one
-
-		if type(value) is int:
-			if value == 0:
-				return cls.zero
-			elif value == 1:
-				return cls.one
-
 		if type(value) is str:
 			if value == '0':
 				return cls.zero
@@ -42,6 +33,17 @@ class _LogicEnumMeta(EnumMeta):
 				return cls.hi_z
 			elif value == 'X':
 				return cls.unknown
+
+		if type(value) is int:
+			if value == 0:
+				return cls.zero
+			elif value == 1:
+				return cls.one
+
+		if value is True:
+			return cls.one
+		if value is False:
+			return cls.zero
 
 		raise ValueError(f"{value!r}: not a valid logic value")
 
@@ -232,12 +234,12 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 
 		try:
 			other = logic(other)
-			if self is logic.zero:
-				if other is logic.one: return logic.one
-				if other is logic.zero: return logic.zero
-			if self is logic.one:
-				if other is logic.one: return logic.zero
-				if other is logic.zero: return logic.one
+			if self is other:
+				if self is logic.zero or self is logic.one:
+					return logic.zero
+			elif (self is logic.zero and other is logic.one) \
+			or (self is logic.one and other is logic.zero):
+				return logic.one
 
 			return logic.unknown
 		except ValueError:

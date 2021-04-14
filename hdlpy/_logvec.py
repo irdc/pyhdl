@@ -65,19 +65,30 @@ class _GenericLogvecType(type):
 	def _convert(cls, value):
 		try:
 			if type(value) is logic:
-				result = (value,)
+				return (value,)
+			elif isinstance(value, logvec):
+				return tuple(value)
 			elif type(value) is int:
 				if value < 0:
 					value = 2 ** (value.bit_length() + 1) + value
-				value = bin(value)[2:]
-			if len(value) == 0:
-				raise ValueError(f"{value!r}: too short")
-
-			result = tuple(logic(b) for b in value if b != '_')
+				result = []
+				while True:
+					result.append(logic.one if value % 2 == 1 else logic.zero)
+					value >>= 1
+					if value == 0:
+						break
+				result.reverse()
+				return tuple(result)
+			elif type(value) in (tuple, list) \
+			and len(value) > 0 \
+			and all(type(v) is logic for v in value):
+				return value
+			elif len(value) != 0:
+				return tuple(logic(b) for b in value if b != '_')
 		except TypeError:
-			raise ValueError(value)
+			pass
 
-		return result
+		raise ValueError(value)
 
 	def __call__(cls, value):
 		if isinstance(value, cls):
@@ -96,8 +107,8 @@ class _LogvecType(_GenericLogvecType):
 
 		result = super()._convert(value)
 
-		if len(result) < len(cls._span):
-			result = (cls._extend_with(result[-1]),) * (len(cls._span) - len(result)) + result
+		if len(result) < len(cls._span) and len(result) > 0:
+			result = (cls._extend_with(result[0]),) * (len(cls._span) - len(result)) + result
 		elif len(result) > len(cls._span):
 			raise ValueError(f"{value!r}: too long for {cls.__name__}")
 
@@ -110,8 +121,8 @@ class _LogvecType(_GenericLogvecType):
 		if type(value) is cls:
 			return value
 		elif value is None:
-			value = (logic(),) * len(cls._span)
-		elif not (isinstance(value, logvec) and cls._span == value._span):
+			value = (logic.unknown,) * len(cls._span)
+		elif not (isinstance(value, logvec) and len(value) == len(cls._span)):
 			value = cls._convert(value)
 
 		return cls.__new__(cls, value)
@@ -123,7 +134,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 
 	@staticmethod
 	def _extend_with(val):
-		return logic(0)
+		return logic.zero
 
 	@staticmethod
 	def _unsigned(obj):
@@ -196,7 +207,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			return NotImplemented
 
 	@staticmethod
-	def _add(left, right, carry = logic(0)):
+	def _add(left, right, carry = logic.zero):
 		try:
 			left, right = logvec._same_length(left, right)
 			result = []
@@ -212,7 +223,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def _sub(left, right):
 		try:
 			left, right = logvec._same_length(left, right)
-			return logvec._add(left, ~right, logic(1))
+			return logvec._add(left, ~right, logic.one)
 		except (TypeError, ValueError):
 			return NotImplemented
 
@@ -223,9 +234,9 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			ty = left._generic[len(left) + len(right) - 1:0]
 			result, right = ty(0), ty(right)
 			for l in reversed(left):
-				if l == logvec(1):
+				if l is logic.one:
 					result += right
-				elif l != logvec(0):
+				elif l is not logic.zero:
 					return ty()
 				right <<= 1
 			return result
@@ -241,8 +252,8 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			bits = len(num)
 
 			quot = type(num)(0)
-			num = logvec._concat((logic(0),) * bits, num)
-			denom = logvec._concat(denom, (logic(0),) * bits)
+			num = logvec._concat((logic.zero,) * bits, num)
+			denom = logvec._concat(denom, (logic.zero,) * bits)
 
 			for i in range(bits, 0, -1):
 				if num >= denom:
@@ -305,7 +316,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 				return 'X' if fmt == 'X' else 'x'
 
 		result = ''
-		buf = [logic(0)] * (bits - len(self) % bits) if len(self) % bits != 0 else []
+		buf = [logic.zero] * (bits - len(self) % bits) if len(self) % bits != 0 else []
 		for bit in self:
 			buf.append(bit)
 			if len(buf) == bits:
@@ -431,7 +442,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			return self
 		if amount >= len(self):
 			return type(self)(0)
-		return logvec._concat(self[-(amount + 1):], (logic(0),) * amount)
+		return logvec._concat(self[-(amount + 1):], (logic.zero,) * amount)
 
 	def __lshift__(self, amount):
 		return self.shift_left(amount)
@@ -464,7 +475,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			return self
 		if amount >= len(self):
 			return type(self)(0)
-		return logvec._concat((logic(0),) * amount, self[:amount])
+		return logvec._concat((logic.zero,) * amount, self[:amount])
 
 	def __rshift__(self, amount):
 		return self.shift_right(amount)
