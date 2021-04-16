@@ -399,24 +399,24 @@ class test_logvec(unittest.TestCase):
 		with self.assertRaises(TypeError):
 			logvec('01').unsigned ^ logvec('01').signed
 
-	def _test_shift(self, fun, vec, amount, expected):
-		with self.subTest(fun = fun.__name__, amount = amount, expected = expected):
-			actual = fun(vec, amount)
+	def _test_shift(self, fun, vec, args, expected, signed_expected):
+		with self.subTest(fun = fun, args = args, expected = expected):
+			actual = getattr(vec, fun)(*args)
 			self.assertEqual(expected, actual)
-		with self.subTest(fun = 'unsigned.' + fun.__name__, amount = amount, expected = unsigned(expected)):
-			actual = fun(unsigned(vec), amount)
+		with self.subTest(fun = 'unsigned.' + fun, args = args, expected = unsigned(expected)):
+			actual = getattr(unsigned(vec), fun)(*args)
 			self.assertEqual(unsigned(expected), actual)
-		with self.subTest(fun = 'signed.' + fun.__name__, amount = amount, expected = signed(expected)):
-			actual = fun(signed(vec), amount)
-			self.assertEqual(signed(expected), actual)
+		with self.subTest(fun = 'signed.' + fun, args = args, expected = signed_expected):
+			actual = getattr(signed(vec), fun)(*args)
+			self.assertEqual(signed_expected, actual)
 
-	def _test_shift_invalid(self, fun, vec, amount):
-		with self.subTest(fun = fun.__name__), self.assertRaises(ValueError):
-			fun(vec, amount)
-		with self.subTest(fun = 'unsigned.' + fun.__name__), self.assertRaises(ValueError):
-			fun(vec.unsigned, amount)
-		with self.subTest(fun = 'signed.' + fun.__name__), self.assertRaises(ValueError):
-			fun(vec.signed, amount)
+	def _test_shift_invalid(self, fun, vec, args):
+		with self.subTest(fun = fun, args = args), self.assertRaises(ValueError):
+			getattr(vec, fun)(*args)
+		with self.subTest(fun = 'unsigned.' + fun, args = args), self.assertRaises(ValueError):
+			getattr(unsigned(vec), fun)(*args)
+		with self.subTest(fun = 'signed.' + fun, args = args), self.assertRaises(ValueError):
+			getattr(signed(vec), fun)(*args)
 
 	def test_shift_left(self):
 		tests = (
@@ -430,13 +430,25 @@ class test_logvec(unittest.TestCase):
 
 		vec = logvec('ZX101ZX')
 		for amount, expected in tests:
-			self._test_shift(type(vec).shift_left, vec, amount, expected)
-			self._test_shift(type(vec).__lshift__, vec, amount, expected)
+			self._test_shift('shift_left', vec, (amount,), expected, signed(expected))
+			self._test_shift('__lshift__', vec, (amount,), expected, signed(expected))
+
+	def test_shift_left_fill(self):
+		tests = (
+			(1, 'X', logvec('X101ZXX')),
+			(2, logic.unknown, logvec('101ZXXX')),
+			(6, 1, logvec('X111111')),
+		)
+
+		vec = logvec('ZX101ZX')
+		for amount, fill, expected in tests:
+			self._test_shift('shift_left', vec, (amount, fill), expected, signed(expected))
 
 	def test_shift_left_invalid(self):
 		vec = logvec('ZX101ZX')
-		self._test_shift_invalid(type(vec).shift_left, vec, -1)
-		self._test_shift_invalid(type(vec).__lshift__, vec, -1)
+		self._test_shift_invalid('shift_left', vec, (-1,))
+		self._test_shift_invalid('__lshift__', vec, (-1,))
+		self._test_shift_invalid('shift_left', vec, (-1, logic('X')))
 
 	def test_rotate_left(self):
 		tests = (
@@ -450,31 +462,43 @@ class test_logvec(unittest.TestCase):
 
 		vec = logvec('ZX101ZX')
 		for amount, expected in tests:
-			self._test_shift(type(vec).rotate_left, vec, amount, expected)
+			self._test_shift('rotate_left', vec, (amount,), expected, signed(expected))
 
 	def test_rotate_left_invalid(self):
 		vec = logvec('ZX101ZX')
-		self._test_shift_invalid(type(vec).rotate_left, vec, -1)
+		self._test_shift_invalid('rotate_left', vec, (-1,))
 
 	def test_shift_right(self):
 		tests = (
-			(0, logvec('ZX101ZX')),
-			(1, logvec('0ZX101Z')),
-			(2, logvec('00ZX101')),
-			(6, logvec('000000Z')),
-			(7, logvec('0000000')),
-			(8, logvec('0000000')),
+			(0, logvec('ZX101ZX'), logvec('ZX101ZX').signed),
+			(1, logvec('0ZX101Z'), logvec('ZZX101Z').signed),
+			(2, logvec('00ZX101'), logvec('ZZZX101').signed),
+			(6, logvec('000000Z'), logvec('ZZZZZZZ').signed),
+			(7, logvec('0000000'), logvec('ZZZZZZZ').signed),
+			(8, logvec('0000000'), logvec('ZZZZZZZ').signed),
 		)
 
 		vec = logvec('ZX101ZX')
-		for amount, expected in tests:
-			self._test_shift(type(vec).shift_right, vec, amount, expected)
-			self._test_shift(type(vec).__rshift__, vec, amount, expected)
+		for amount, expected, signed_expected in tests:
+			self._test_shift('shift_right', vec, (amount,), expected, signed_expected)
+			self._test_shift('__rshift__', vec, (amount,), expected, signed_expected)
+
+	def test_shift_right_fill(self):
+		tests = (
+			(1, 'X', logvec('XZX101Z')),
+			(2, logic.unknown, logvec('XXZX101')),
+			(6, 1, logvec('111111Z')),
+		)
+
+		vec = logvec('ZX101ZX')
+		for amount, fill, expected in tests:
+			self._test_shift('shift_right', vec, (amount, fill), expected, signed(expected))
 
 	def test_shift_right_invalid(self):
 		vec = logvec('ZX101ZX')
-		self._test_shift_invalid(type(vec).shift_right, vec, -1)
-		self._test_shift_invalid(type(vec).__rshift__, vec, -1)
+		self._test_shift_invalid('shift_right', vec, (-1,))
+		self._test_shift_invalid('__rshift__', vec, (-1,))
+		self._test_shift_invalid('shift_right', vec, (-1, logic('X')))
 
 	def test_rotate_right(self):
 		tests = (
@@ -488,11 +512,11 @@ class test_logvec(unittest.TestCase):
 
 		vec = logvec('ZX101ZX')
 		for amount, expected in tests:
-			self._test_shift(type(vec).rotate_right, vec, amount, expected)
+			self._test_shift('rotate_right', vec, (amount,), expected, signed(expected))
 
 	def test_rotate_right_invalid(self):
 		vec = logvec('ZX101ZX')
-		self._test_shift_invalid(type(vec).rotate_right, vec, -1)
+		self._test_shift_invalid('rotate_right', vec, (-1,))
 
 	def test_add(self):
 		tests = (

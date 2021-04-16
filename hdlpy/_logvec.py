@@ -431,7 +431,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 
 		return logvec._apply(operator.__xor__, other, self)
 
-	def shift_left(self, amount):
+	def shift_left(self, amount, fill = logic.zero):
 		"""Logically shift left by amount."""
 
 		if type(amount) is not int:
@@ -444,8 +444,8 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		if amount == 0:
 			return self
 		if amount >= len(self):
-			return type(self)(0)
-		return logvec._concat(self[-(amount + 1):], logic.zero * amount)
+			return type(self)(logic(fill) * len(self))
+		return logvec._concat(self[-(amount + 1):], logic(fill) * amount)
 
 	def __lshift__(self, amount):
 		return self.shift_left(amount)
@@ -464,7 +464,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		return self if amount == 0 else logvec._concat(self[-(amount + 1):], self[:-amount])
 
 
-	def shift_right(self, amount):
+	def shift_right(self, amount, fill = logic.zero):
 		"""Logically shift right by amount."""
 
 		if type(amount) is not int:
@@ -477,8 +477,8 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		if amount == 0:
 			return self
 		if amount >= len(self):
-			return type(self)(0)
-		return logvec._concat(logic.zero * amount, self[:amount])
+			return type(self)(logic(fill) * len(self))
+		return logvec._concat(logic(fill) * amount, self[:amount])
 
 	def __rshift__(self, amount):
 		return self.shift_right(amount)
@@ -688,6 +688,11 @@ class signed_logvec(logvec):
 	def __ge__(self, other):
 		cmp = signed_logvec._cmp(self, other)
 		return NotImplemented if cmp is NotImplemented else cmp >= 0
+
+	def shift_right(self, amount, fill = None):
+		"""Arithmetically shift right by amount."""
+
+		return super().shift_right(amount, self[-1] if fill is None else fill)
 
 	def __neg__(self):
 		"""-self"""
