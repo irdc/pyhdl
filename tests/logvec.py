@@ -46,6 +46,8 @@ class test_logvec(unittest.TestCase):
 
 	def test_new(self):
 		tests = (
+			('', "<logvec.empty ''>"),
+			((), "<logvec.empty ''>"),
 			(0, "<logvec[0:0] '0'>"),
 			(1, "<logvec[0:0] '1'>"),
 			(42, "<logvec[5:0] '101010'>"),
@@ -64,7 +66,6 @@ class test_logvec(unittest.TestCase):
 	def test_new_invalid(self):
 		tests = (
 			(None),
-			(''),
 			('supercalifragilisticexpialidocious'),
 		)
 
@@ -76,6 +77,7 @@ class test_logvec(unittest.TestCase):
 	def test_new_typed(self):
 		tests = (
 			(None, 7, 0, "<logvec[7:0] 'XXXXXXXX'>"),
+			((), 7, 0, "<logvec[7:0] '00000000'>"),
 			(0, 7, 0, "<logvec[7:0] '00000000'>"),
 			(0, 15, 8, "<logvec[15:8] '00000000'>"),
 			(42, 7, 0, "<logvec[7:0] '00101010'>"),
@@ -96,7 +98,6 @@ class test_logvec(unittest.TestCase):
 
 	def test_new_invalid_typed(self):
 		tests = (
-			((), 3, 0),
 			((None, None, None, None), 3, 0),
 			('00000', 3, 0),
 			(logvec('00101010'), 6, 0),
@@ -503,8 +504,47 @@ class test_logvec(unittest.TestCase):
 		)
 
 		for a, b, expected in tests:
-			with self.subTest(a = a, b = b, expected = expected):
-				actual = a + b
+			if isinstance(a, logvec):
+				with self.subTest(fun = '__add__', a = a, b = b, expected = expected):
+					actual = a.__add__(b)
+			if isinstance(b, logvec):
+				with self.subTest(fun = '__radd__', a = a, b = b, expected = expected):
+					actual = b.__radd__(a)
+
+	def test_mul(self):
+		tests = (
+			(0, logvec.empty),
+			(1, logvec[6:0]('ZX101ZX')),
+			(3, logvec[20:0]('ZX101ZXZX101ZXZX101ZX')),
+		)
+
+		vec = logvec('ZX101ZX')
+		for other, expected in tests:
+			with self.subTest(fun = '__mul__', other = other, expected = expected):
+				actual = vec.__mul__(other)
+				self.assertEqual(expected, actual)
+			with self.subTest(fun = '__rmul__', other = other, expected = expected):
+				actual = vec.__rmul__(other)
+				self.assertEqual(expected, actual)
+
+	def test_mul_notimplemented(self):
+		tests = (
+			(None),
+			(-1),
+			('foo'),
+			(logic('1')),
+			(logvec('01')),
+		)
+
+		vec = logvec('ZX101ZX')
+		for other in tests:
+			with self.subTest(fun = '__mul__', other = other):
+				actual = vec.__mul__(other)
+				self.assertIs(NotImplemented, actual)
+			with self.subTest(fun = '__rmul__', other = other):
+				actual = vec.__rmul__(other)
+				self.assertIs(NotImplemented, actual)
+
 
 class test_logvec_unsigned(unittest.TestCase):
 	def assertEqual(self, first, second, msg = None):

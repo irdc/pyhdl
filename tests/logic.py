@@ -16,7 +16,7 @@
 #
 
 import unittest, operator
-from hdlpy import logic
+from hdlpy import logic, logvec
 
 class test_logic(unittest.TestCase):
 	def test_default(self):
@@ -426,4 +426,70 @@ class test_logic(unittest.TestCase):
 		for other in tests:
 			with self.subTest(other = other):
 				actual = logic.zero.__xor__(other)
+				self.assertIs(NotImplemented, actual)
+
+	def test_add(self):
+		tests = (
+			(logic.one, logvec[1:0]('01')),
+			(1, logvec[1:0]('01')),
+			('1', logvec[1:0]('01')),
+			(True, logvec[1:0]('01')),
+		)
+
+		for other, expected in tests:
+			with self.subTest(fun = '__add__', other = other, expected = expected):
+				actual = logic.zero.__add__(other)
+				self.assertEqual(expected, actual)
+			if type(other) is logic:
+				with self.subTest(fun = '__radd__', other = other, expected = expected):
+					actual = other.__radd__(logic.zero)
+					self.assertEqual(expected, actual)
+
+	def test_add_notimplemented(self):
+		tests = (
+			(None),
+			(''),
+			('foo'),
+			(logvec('1')),
+			(logvec('01')),
+		)
+
+		for other in tests:
+			with self.subTest(fun = '__add__', other = other):
+				actual = logic.zero.__add__(other)
+				self.assertIs(NotImplemented, actual)
+			with self.subTest(fun = '__radd__', other = other):
+				actual = logic.zero.__radd__(other)
+				self.assertIs(NotImplemented, actual)
+
+	def test_mul(self):
+		tests = (
+			(0, logvec.empty),
+			(1, logvec[0:0]('0')),
+			(8, logvec[7:0]('0')),
+		)
+
+		for other, expected in tests:
+			with self.subTest(fun = '__mul__', other = other, expected = expected):
+				actual = logic.zero.__mul__(other)
+				self.assertEqual(expected, actual)
+			with self.subTest(fun = '__rmul__', other = other, expected = expected):
+				actual = logic.zero.__rmul__(other)
+				self.assertEqual(expected, actual)
+
+	def test_mul_notimplemented(self):
+		tests = (
+			(None),
+			(-1),
+			('foo'),
+			(logic('1')),
+			(logvec('01')),
+		)
+
+		for other in tests:
+			with self.subTest(fun = '__mul__', other = other):
+				actual = logic.zero.__mul__(other)
+				self.assertIs(NotImplemented, actual)
+			with self.subTest(fun = '__rmul__', other = other):
+				actual = logic.zero.__rmul__(other)
 				self.assertIs(NotImplemented, actual)

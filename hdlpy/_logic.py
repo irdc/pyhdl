@@ -244,3 +244,34 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 			return logic.unknown
 		except ValueError:
 			return NotImplemented
+
+	def __add__(self, other):
+		"""self + other -> result"""
+
+		try:
+			return logvec((self, logic(other)))
+		except ValueError:
+			return NotImplemented
+
+	def __radd__(self, other):
+		"""other + self -> result"""
+
+		try:
+			return logvec((logic(other), self))
+		except ValueError:
+			return NotImplemented
+
+	def __mul__(self, other):
+		"""self * other -> result"""
+
+		try:
+			return NotImplemented if other < 0 else logvec((self,) * other)
+		except (TypeError, ValueError):
+			return NotImplemented
+
+	def __rmul__(self, other):
+		"""self * other -> result"""
+
+		return self.__mul__(other)
+
+from ._logvec import logvec
