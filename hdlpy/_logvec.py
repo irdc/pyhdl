@@ -64,11 +64,10 @@ class _GenericLogvecType(type):
 
 	def _convert(cls, value):
 		try:
-			if type(value) is logic:
-				return (value,)
-			elif isinstance(value, logvec):
+			if isinstance(value, logvec):
 				return tuple(value)
-			elif type(value) is int:
+
+			if type(value) is int:
 				if value < 0:
 					value = 2 ** (value.bit_length() + 1) + value
 				result = []
@@ -79,15 +78,16 @@ class _GenericLogvecType(type):
 						break
 				result.reverse()
 				return tuple(result)
-			elif type(value) in (tuple, list) \
-			and all(type(v) is logic for v in value):
-				return value
-			else:
-				return tuple(logic(b) for b in value if b != '_')
-		except TypeError:
-			pass
 
-		raise ValueError(value)
+			try:
+				return (value._logic_value,)
+			except:
+				try:
+					return tuple(v._logic_value for v in value)
+				except:
+					return tuple(logic(b) for b in value if b != '_')
+		except TypeError:
+			raise ValueError(value)
 
 	def __call__(cls, value):
 		if isinstance(value, cls):
@@ -96,23 +96,24 @@ class _GenericLogvecType(type):
 			value = cls._convert(value)
 		if len(value) == 0:
 			return logvec.empty
-		cls = cls._generic[len(value) - 1:0]
 
-		return cls.__new__(cls, value)
+		return cls._make_type(rspan(start = len(value) - 1, end = 0))._new(value)
 
 
 class _LogvecType(_GenericLogvecType):
 	def _convert(cls, value):
 		if type(value) is int and value < 0:
-			value = 2 ** len(cls._span) + value
+			value = 2 ** len(cls.__args__[0]) + value
 
 		result = super()._convert(value)
 
-		if len(result) == 0:
-			result = logic.zero * len(cls._span)
-		elif len(result) < len(cls._span):
-			result = cls._extend_with(result[0]) * (len(cls._span) - len(result)) + result
-		elif len(result) > len(cls._span):
+		span = cls.__args__[0]
+		if len(result) < len(span):
+			if len(result) == 0:
+				result = (logic.zero,) * len(span)
+			else:
+				result = (cls._extend_with(result[0]),) * (len(span) - len(result)) + result
+		elif len(result) > len(span):
 			raise ValueError(f"{value!r}: too long for {cls.__name__}")
 
 		return result
@@ -120,15 +121,18 @@ class _LogvecType(_GenericLogvecType):
 	def __getitem__(cls, index):
 		raise RuntimeError("not a generic type")
 
+	def _new(cls, value):
+		return tuple.__new__(cls, value)
+
 	def __call__(cls, value = None):
 		if type(value) is cls:
 			return value
 		elif value is None:
-			value = logic.unknown * len(cls._span)
-		elif not (isinstance(value, logvec) and len(value) == len(cls._span)):
+			value = (logic.unknown,) * len(cls.__args__[0])
+		elif not (isinstance(value, logvec) and len(value) == len(cls.__args__[0])):
 			value = cls._convert(value)
 
-		return cls.__new__(cls, value)
+		return cls._new(value)
 
 
 @export
@@ -159,21 +163,23 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		if not isinstance(right, logvec):
 			right = logvec(right)
 
-		if type(left)._generic == type(right)._generic:
+		if type(left).__origin__ == type(right).__origin__:
 			return left, right
-		elif type(left)._generic == logvec \
-		and type(right)._generic != logvec:
-			return right._generic[left._span](left), right
-		elif type(left)._generic != logvec \
-		and type(right)._generic == logvec:
-			return left, left._generic[right._span](right)
+		elif type(left).__origin__ == logvec \
+		and type(right).__origin__ != logvec:
+			return right.__origin__[left.__args__[0]]._new(left), right
+		elif type(left).__origin__ != logvec \
+		and type(right).__origin__ == logvec:
+			return left, left.__origin__[right.__args__[0]]._new(right)
 		else:
 			raise ValueError(f"bad operation for {left!r} and {right!r}")
 
 	@staticmethod
 	def _enlarge(obj, new_len):
 		if len(obj) < new_len:
-			obj = obj._generic[obj._span.start + new_len - len(obj):obj._span.end](obj)
+			obj = obj.__origin__[rspan(
+				start = obj.__args__[0].start + new_len - len(obj),
+				end = obj.__args__[0].end)](obj)
 		return obj
 
 	@staticmethod
@@ -185,7 +191,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def _apply(oper, left, right):
 		try:
 			left, right = logvec._same_length(left, right)
-			return logvec.__new__(type(left), (oper(l, r) for l, r in zip(left, right)))
+			return type(left)._new((oper(l, r) for l, r in zip(left, right)))
 		except (TypeError, ValueError):
 			return NotImplemented
 
@@ -193,8 +199,10 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def _concat(left, right):
 		try:
 			left, right = logvec._same_types(left, right)
-			ty = left._generic[len(left._span) + len(right._span) - 1:0]
-			return tuple.__new__(ty, (*left, *right))
+			ty = left.__origin__[rspan(
+				start = len(left.__args__[0]) + len(right.__args__[0]) - 1,
+				end = 0)]
+			return ty._new((*left, *right))
 		except (TypeError, ValueError):
 			return NotImplemented
 
@@ -234,7 +242,9 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def _mul(left, right):
 		try:
 			left, right = logvec._same_types(left, right)
-			ty = left._generic[len(left) + len(right) - 1:0]
+			ty = left.__origin__[rspan(
+				start = len(left) + len(right) - 1,
+				end = 0)]
 			result, right = ty(0), ty(right)
 			for l in reversed(left):
 				if l is logic.one:
@@ -255,8 +265,9 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			bits = len(num)
 
 			quot = type(num)(0)
-			num = logvec._concat(logic.zero * bits, num)
-			denom = logvec._concat(denom, logic.zero * bits)
+			zeroes = logic.zero * bits
+			num = logvec._concat(zeroes, num)
+			denom = logvec._concat(denom, zeroes)
 
 			for i in range(bits, 0, -1):
 				if num >= denom:
@@ -268,35 +279,11 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		except (TypeError, ValueError):
 			return NotImplemented, NotImplemented
 
-	def __new__(cls, value):
-		assert cls._span is not None
-		return tuple.__new__(cls, tuple(value))
-
-	_generic = type_property()
-	_span = type_property()
-
-	@_generic.type
-	def _generic(cls):
-		return getattr(cls, '__origin__', cls)
-
-	@_generic.value
-	def _generic(self):
-		return type(self)._generic
-
-	@_span.type
-	def _span(cls):
-		args = getattr(cls, '__args__', None)
-		return args[0] if args is not None else None
-
-	@_span.value
-	def _span(self):
-		return type(self)._span
-
 	def __repr__(self):
 		return f"<{type(self).__name__} '{self!s}'>"
 
 	def __str__(self):
-		return ''.join(b._value_ for b in self)
+		return ''.join(str(b) for b in self)
 
 	def __format__(self, fmt):
 		if fmt == 'b' or fmt == '':
@@ -338,14 +325,15 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		* self[-1:0] returns the entire contents
 		"""
 
-		index = self._span.map(index)
+		index = self.__args__[0].map(index)
 		result = super().__getitem__(index)
-		if type(result) is not logic:
+
+		try:
+			return result._logic_value
+		except:
 			if len(result) == 0:
-				result = logvec.empty
-			else:
-				result = self._generic[self._span.rmap(index)](result)
-		return result
+				return logvec.empty
+			return self.__origin__[self.__args__[0].rmap(index)](result)
 
 	def __reversed__(self):
 		"""reversed(self)"""
@@ -359,27 +347,27 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 
 	@vector.type
 	def vector(cls):
-		return logvec[cls._span]
+		return logvec[cls.__args__[0]]
 
 	@vector.value
 	def vector(self):
-		return type(self).vector(self)
+		return type(self).vector._new(self)
 
 	@unsigned.type
 	def unsigned(cls):
-		return unsigned_logvec[cls._span]
+		return unsigned_logvec[cls.__args__[0]]
 
 	@unsigned.value
 	def unsigned(self):
-		return type(self).unsigned(self)
+		return type(self).unsigned._new(self)
 
 	@signed.type
 	def signed(cls):
-		return signed_logvec[cls._span]
+		return signed_logvec[cls.__args__[0]]
 
 	@signed.value
 	def signed(self):
-		return type(self).signed(self)
+		return type(self).signed._new(self)
 
 	def __eq__(self, other):
 		try:
@@ -399,7 +387,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 	def __invert__(self):
 		"""~self"""
 
-		return logvec.__new__(type(self), (~b for b in self))
+		return type(self)._new((~b for b in self))
 
 	def __and__(self, other):
 		"""self & other"""
@@ -443,9 +431,12 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			raise ValueError(f"{amount!r}: negative shift count")
 		if amount == 0:
 			return self
-		if amount >= len(self):
-			return type(self)(logic(fill) * len(self))
-		return logvec._concat(self[-(amount + 1):], logic(fill) * amount)
+		try:
+			if amount >= len(self):
+				return type(self)(fill._logic_value * len(self))
+			return logvec._concat(self[-(amount + 1):], fill._logic_value * amount)
+		except:
+			return self.shift_left(amount, logic(fill))
 
 	def __lshift__(self, amount):
 		return self.shift_left(amount)
@@ -463,7 +454,6 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		amount %= len(self)
 		return self if amount == 0 else logvec._concat(self[-(amount + 1):], self[:-amount])
 
-
 	def shift_right(self, amount, fill = logic.zero):
 		"""Logically shift right by amount."""
 
@@ -476,9 +466,12 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			raise ValueError(f"{amount!r}: negative shift count")
 		if amount == 0:
 			return self
-		if amount >= len(self):
-			return type(self)(logic(fill) * len(self))
-		return logvec._concat(logic(fill) * amount, self[:amount])
+		try:
+			if amount >= len(self):
+				return type(self)(fill._logic_value * len(self))
+			return logvec._concat(fill._logic_value * amount, self[:amount])
+		except:
+			return self.shift_right(amount, logic(fill))
 
 	def __rshift__(self, amount):
 		return self.shift_right(amount)
@@ -510,7 +503,10 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		"""Repeat self times other."""
 
 		try:
-			return NotImplemented if other < 0 else logvec(tuple(self) * other)
+			if other <= 0:
+				return NotImplemented if other < 0 else logvec.empty
+			else:
+				return logvec[len(self) * other - 1:0]._new(tuple(self) * other)
 		except (TypeError, ValueError):
 			return NotImplemented
 
@@ -523,8 +519,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 class _logvec0(logvec):
 	__origin__ = logvec
 	__args__ = (rspan.empty,)
-	def __new__(cls):
-		return logvec.empty
+
 _logvec0.__name__ = f"{logvec.__name__}.empty"
 _logvec0.__qualname__ = f"{logvec.__qualname__}.empty"
 
@@ -692,7 +687,10 @@ class signed_logvec(logvec):
 	def shift_right(self, amount, fill = None):
 		"""Arithmetically shift right by amount."""
 
-		return super().shift_right(amount, self[-1] if fill is None else fill)
+		try:
+			return super().shift_right(amount, fill._logic_value)
+		except:
+			return super().shift_right(amount, self[-1] if fill is None else logic(fill))
 
 	def __neg__(self):
 		"""-self"""

@@ -116,14 +116,14 @@ class WaitChange(Wait):
 class WaitRising(WaitChange):
 	def ready(self, task):
 		return any(
-			task.is_changed(self._obj, attr, logic('1'))
+			task.is_changed(self._obj, attr, logic.one)
 			for attr in self._attrs)
 
 
 class WaitFalling(WaitChange):
 	def ready(self, task):
 		return any(
-			task.is_changed(self._obj, attr, logic('0'))
+			task.is_changed(self._obj, attr, logic.zero)
 			for attr in self._attrs)
 
 

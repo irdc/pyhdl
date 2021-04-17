@@ -15,40 +15,10 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-from enum import Enum, EnumMeta
-
 from ._lib import export
 
-class _LogicEnumMeta(EnumMeta):
-	def __call__(cls, value = 'X'):
-		if type(value) is cls:
-			return value
-
-		if type(value) is str:
-			if value == '0':
-				return cls.zero
-			elif value == '1':
-				return cls.one
-			elif value == 'Z':
-				return cls.hi_z
-			elif value == 'X':
-				return cls.unknown
-
-		if type(value) is int:
-			if value == 0:
-				return cls.zero
-			elif value == 1:
-				return cls.one
-
-		if value is True:
-			return cls.one
-		if value is False:
-			return cls.zero
-
-		raise ValueError(f"{value!r}: not a valid logic value")
-
 @export
-class logic(str, Enum, metaclass = _LogicEnumMeta):
+class logic(tuple):
 	"""Represents a logic signal and implements multi-value logic.
 
 	Value can be any of:
@@ -58,16 +28,40 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 		'X': an unknown signal
 	"""
 
-	zero = '0'
-	one = '1'
-	hi_z = 'Z'
-	unknown = 'X'
+	def __new__(cls, value = 'X'):
+		try:
+			return value._logic_value
+		except:
+			if type(value) is str:
+				if value == '0':
+					return cls.zero
+				elif value == '1':
+					return cls.one
+				elif value == 'Z':
+					return cls.hi_z
+				elif value == 'X':
+					return cls.unknown
+
+			if type(value) is int:
+				if value == 0:
+					return cls.zero
+				elif value == 1:
+					return cls.one
+
+			if value is True:
+				return cls.one
+			if value is False:
+				return cls.zero
+
+			raise ValueError(f"{value!r}: not a valid logic value")
+
+	def __init_subclass__(cls):
+		super().__init_subclass__()
+		cls.__name__ = logic.__name__
+		cls.__qualname__ = logic.__qualname__
 
 	def __repr__(self):
 		return f"<logic '{self!s}'>"
-
-	def __str__(self):
-		return self._value_
 
 	def __format__(self, fmt):
 		if fmt != '':
@@ -83,42 +77,64 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 
 	def __eq__(self, other):
 		try:
-			return (type(other) is str and other == '-') or self is logic(other)
-		except ValueError:
-			return NotImplemented
+			return self is other._logic_value
+		except:
+			try:
+				return (type(other) is str and other == '-') \
+					or self is logic(other)
+			except ValueError:
+				return NotImplemented
 
 	def __ne__(self, other):
 		try:
-			return not ((type(other) is str and other == '-') or self is logic(other))
-		except ValueError:
-			return NotImplemented
-
-	def _cmp(self, other):
-		try:
-			return ord(self._value_) - ord(other._value_)
-		except AttributeError:
-			return NotImplemented
+			return self is not other._logic_value
+		except:
+			try:
+				return not ((type(other) is str and other == '-') \
+					or self is logic(other))
+			except ValueError:
+				return NotImplemented
 
 	def __lt__(self, other):
-		cmp = self._cmp(other)
-		return NotImplemented if cmp is NotImplemented else cmp < 0
+		try:
+			return self._logic_order < other._logic_order
+		except:
+			try:
+				return self._logic_order < logic(other)._logic_order
+			except ValueError:
+				return NotImplemented
 
 	def __le__(self, other):
-		cmp = self._cmp(other)
-		return NotImplemented if cmp is NotImplemented else cmp <= 0
+		try:
+			return self._logic_order <= other._logic_order
+		except:
+			try:
+				return self._logic_order <= logic(other)._logic_order
+			except ValueError:
+				return NotImplemented
 
 	def __gt__(self, other):
-		cmp = self._cmp(other)
-		return NotImplemented if cmp is NotImplemented else cmp > 0
+		try:
+			return self._logic_order > other._logic_order
+		except:
+			try:
+				return self._logic_order > logic(other)._logic_order
+			except ValueError:
+				return NotImplemented
 
 	def __ge__(self, other):
-		cmp = self._cmp(other)
-		return NotImplemented if cmp is NotImplemented else cmp >= 0
+		try:
+			return self._logic_order >= other._logic_order
+		except:
+			try:
+				return self._logic_order >= logic(other)._logic_order
+			except ValueError:
+				return NotImplemented
 
 	def __bool__(self):
 		"""self is logic.one"""
 
-		return self is logic.one
+		return False
 
 	def __invert__(self):
 		"""~self -> result
@@ -131,10 +147,13 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 		 X     X
 		"""
 
-		if self is logic.zero: return logic.one
-		if self is logic.one: return logic.zero
-
 		return logic.unknown
+
+	def __copy__(self):
+		return self
+
+	def __deepcopy__(self, memo):
+		return self
 
 	def __and__(self, other):
 		"""self & other -> result
@@ -162,14 +181,8 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 		 X     X     X
 		"""
 
-		try:
-			other = logic(other)
-			if self is logic.one and other is logic.one: return logic.one
-			if self is logic.zero or other is logic.zero: return logic.zero
-
-			return logic.unknown
-		except ValueError:
-			return NotImplemented
+		# implemented in subclass
+		raise NotImplementedError
 
 	def __or__(self, other):
 		"""self | other -> result
@@ -197,14 +210,8 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 		 X     X     X
 		"""
 
-		try:
-			other = logic(other)
-			if self is logic.zero and other is logic.zero: return logic.zero
-			if self is logic.one or other is logic.one: return logic.one
-
-			return logic.unknown
-		except ValueError:
-			return NotImplemented
+		# implemented in subclass
+		raise NotImplementedError
 
 	def __xor__(self, other):
 		"""self ^ other -> result
@@ -232,16 +239,24 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 		 X     X     X
 		"""
 
-		try:
-			other = logic(other)
-			if self is other:
-				if self is logic.zero or self is logic.one:
-					return logic.zero
-			elif (self is logic.zero and other is logic.one) \
-			or (self is logic.one and other is logic.zero):
-				return logic.one
+		# implemented in subclass
+		raise NotImplementedError
 
-			return logic.unknown
+	def __rand__(self, other):
+		try:
+			return self.__and__(logic(other))
+		except ValueError:
+			return NotImplemented
+
+	def __ror__(self, other):
+		try:
+			return self.__or__(logic(other))
+		except ValueError:
+			return NotImplemented
+
+	def __rxor__(self, other):
+		try:
+			return self.__xor__(logic(other))
 		except ValueError:
 			return NotImplemented
 
@@ -249,15 +264,18 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 		"""self + other -> result"""
 
 		try:
-			return logvec((self, logic(other)))
-		except ValueError:
-			return NotImplemented
+			return logvec[1:0]._new((self, other._logic_value))
+		except:
+			try:
+				return logvec[1:0]._new((self, logic(other)))
+			except ValueError:
+				return NotImplemented
 
 	def __radd__(self, other):
 		"""other + self -> result"""
 
 		try:
-			return logvec((logic(other), self))
+			return logvec[1:0]._new((logic(other), self))
 		except ValueError:
 			return NotImplemented
 
@@ -265,7 +283,12 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 		"""self * other -> result"""
 
 		try:
-			return NotImplemented if other < 0 else logvec((self,) * other)
+			if other < 0:
+				return NotImplemented
+			elif other == 0:
+				return logvec.empty
+			else:
+				return logvec[other - 1:0]._new((self,) * other)
 		except (TypeError, ValueError):
 			return NotImplemented
 
@@ -273,5 +296,233 @@ class logic(str, Enum, metaclass = _LogicEnumMeta):
 		"""self * other -> result"""
 
 		return self.__mul__(other)
+
+
+class logic_zero(logic):
+	@classmethod
+	def _init(cls):
+		cls._logic_value = logic.zero
+		cls._logic_order = 0
+
+		cls._and_zero = logic.zero
+		cls._and_one = logic.zero
+		cls._and_hi_z = logic.zero
+		cls._and_unknown = logic.zero
+
+		cls._or_zero = logic.zero
+		cls._or_one = logic.one
+		cls._or_hi_z = logic.unknown
+		cls._or_unknown = logic.unknown
+
+		cls._xor_zero = logic.zero
+		cls._xor_one = logic.one
+		cls._xor_hi_z = logic.unknown
+		cls._xor_unknown = logic.unknown
+
+	def __str__(self):
+		return '0'
+
+	def __invert__(self):
+		return logic.one
+
+	def __and__(self, other):
+		try:
+			return other._and_zero
+		except:
+			try:
+				return logic(other)._and_zero
+			except ValueError:
+				return NotImplemented
+
+	def __or__(self, other):
+		try:
+			return other._or_zero
+		except:
+			try:
+				return logic(other)._or_zero
+			except ValueError:
+				return NotImplemented
+
+	def __xor__(self, other):
+		try:
+			return other._xor_zero
+		except:
+			try:
+				return logic(other)._xor_zero
+			except ValueError:
+				return NotImplemented
+
+
+class logic_one(logic):
+	@classmethod
+	def _init(cls):
+		cls._logic_value = logic.one
+		cls._logic_order = 1
+
+		cls._and_zero = logic.zero
+		cls._and_one = logic.one
+		cls._and_hi_z = logic.unknown
+		cls._and_unknown = logic.unknown
+
+		cls._or_zero = logic.one
+		cls._or_one = logic.one
+		cls._or_hi_z = logic.one
+		cls._or_unknown = logic.one
+
+		cls._xor_zero = logic.one
+		cls._xor_one = logic.zero
+		cls._xor_hi_z = logic.unknown
+		cls._xor_unknown = logic.unknown
+
+	def __str__(self):
+		return '1'
+
+	def __bool__(self):
+		return True
+
+	def __invert__(self):
+		return logic.zero
+
+	def __and__(self, other):
+		try:
+			return other._and_one
+		except:
+			try:
+				return logic(other)._and_one
+			except ValueError:
+				return NotImplemented
+
+	def __or__(self, other):
+		try:
+			return other._or_one
+		except:
+			try:
+				return logic(other)._or_one
+			except ValueError:
+				return NotImplemented
+
+	def __xor__(self, other):
+		try:
+			return other._xor_one
+		except:
+			try:
+				return logic(other)._xor_one
+			except ValueError:
+				return NotImplemented
+
+
+class logic_hi_z(logic):
+	@classmethod
+	def _init(cls):
+		cls._logic_value = logic.hi_z
+		cls._logic_order = 3
+
+		cls._and_zero = logic.zero
+		cls._and_one = logic.unknown
+		cls._and_hi_z = logic.unknown
+		cls._and_unknown = logic.unknown
+
+		cls._or_zero = logic.unknown
+		cls._or_one = logic.one
+		cls._or_hi_z = logic.unknown
+		cls._or_unknown = logic.unknown
+
+		cls._xor_zero = logic.unknown
+		cls._xor_one = logic.unknown
+		cls._xor_hi_z = logic.unknown
+		cls._xor_unknown = logic.unknown
+
+	def __str__(self):
+		return 'Z'
+
+	def __and__(self, other):
+		try:
+			return other._and_hi_z
+		except:
+			try:
+				return logic(other)._and_hi_zi
+			except ValueError:
+				return NotImplemented
+
+	def __or__(self, other):
+		try:
+			return other._or_hi_z
+		except:
+			try:
+				return logic(other)._or_hi_zi
+			except ValueError:
+				return NotImplemented
+
+	def __xor__(self, other):
+		try:
+			return other._xor_hi_z
+		except:
+			try:
+				return logic(other)._xor_hi_zi
+			except ValueError:
+				return NotImplemented
+
+
+class logic_unknown(logic):
+	@classmethod
+	def _init(cls):
+		cls._logic_value = logic.unknown
+		cls._logic_order = 2
+
+		cls._and_zero = logic.zero
+		cls._and_one = logic.unknown
+		cls._and_hi_z = logic.unknown
+		cls._and_unknown = logic.unknown
+
+		cls._or_zero = logic.unknown
+		cls._or_one = logic.one
+		cls._or_hi_z = logic.unknown
+		cls._or_unknown = logic.unknown
+
+		cls._xor_zero = logic.unknown
+		cls._xor_one = logic.unknown
+		cls._xor_hi_z = logic.unknown
+		cls._xor_unknown = logic.unknown
+
+	def __str__(self):
+		return 'X'
+
+	def __and__(self, other):
+		try:
+			return other._and_unknown
+		except:
+			try:
+				return logic(other)._and_unknown
+			except ValueError:
+				return NotImplemented
+
+	def __or__(self, other):
+		try:
+			return other._or_unknown
+		except:
+			try:
+				return logic(other)._or_unknown
+			except ValueError:
+				return NotImplemented
+
+	def __xor__(self, other):
+		try:
+			return other._xor_unknown
+		except:
+			try:
+				return logic(other)._xor_unknown
+			except ValueError:
+				return NotImplemented
+
+
+logic.zero = tuple.__new__(logic_zero)
+logic.one = tuple.__new__(logic_one)
+logic.hi_z = tuple.__new__(logic_hi_z)
+logic.unknown = tuple.__new__(logic_unknown)
+
+logic.zero._init()
+logic.one._init()
+logic.hi_z._init()
+logic.unknown._init()
 
 from ._logvec import logvec

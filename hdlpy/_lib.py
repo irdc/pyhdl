@@ -109,7 +109,7 @@ class timestamp(int):
 
 	def __add__(self, other):
 		if type(other) is int or type(other) is timestamp:
-			return timestamp(super().__add__(other))
+			return int.__new__(timestamp, int.__add__(self, other))
 		return NotImplemented
 
 	def __repr__(self):

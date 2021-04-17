@@ -24,11 +24,11 @@ class _base_span(tuple):
 
 	@property
 	def start(self):
-		return super().__getitem__(0)
+		return self[0]
 
 	@property
 	def end(self):
-		return super().__getitem__(1)
+		return self[1]
 
 	def __repr__(self):
 		return f"<{type(self).__name__} {self!s}>"
@@ -44,14 +44,13 @@ class _base_span(tuple):
 		except TypeError:
 			return NotImplemented
 
-	def __hash__(self):
-		return hash(self.start) * 33 + hash(self.end)
+	__hash__ = tuple.__hash__
 
 	def __eq__(self, other):
 		if self is other:
 			return True
 		if type(self) is type(other):
-			return self.start == other.start and self.end == other.end
+			return super().__eq__(other)
 		return NotImplemented
 
 
