@@ -35,21 +35,22 @@ class Task:
 		def when(self, fun, **conds):
 			return WhenTask(self._sim, self._obj, fun, **conds)
 
-	__slots__ = '_sim', '_obj', '_fun', '_coro', '_last', '_wait'
+	__slots__ = '_sim', '_obj', '_fun', '_coro', '_last_time', '_last_tick', '_wait'
 
 	def __init__(self, sim, obj, fun):
 		self._sim = sim
 		self._obj = obj
 		self._fun = make_async(fun)
 		self._coro = None
-		self._last = timestamp(-1)
+		self._last_time = timestamp(-1)
+		self._last_tick = -1
 		self._wait = Wait.nowait()
 
 	def is_changed(self, obj, attr, value = None):
-		return self._sim.is_changed(self._last, obj, attr, value)
+		return self._sim.is_changed(self._last_tick, obj, attr, value)
 
 	def is_elapsed(self, time):
-		return self._sim.is_elapsed(self._last + time)
+		return self._sim.is_elapsed(self._last_time + time)
 
 	@property
 	def ready(self):
@@ -59,7 +60,7 @@ class Task:
 
 	@property
 	def until(self):
-		return self._wait.until(self._last) \
+		return self._wait.until(self._last_time) \
 		if self._wait is not None else \
 		None
 
@@ -72,7 +73,7 @@ class Task:
 	async def _start(self):
 		raise NotImplementedError
 
-	def run(self, now):
+	def run(self, now, ticks):
 		if self._coro is None:
 			self._coro = self._start()
 
@@ -81,7 +82,8 @@ class Task:
 		except StopIteration:
 			self._wait = None
 
-		self._last = now
+		self._last_time = now
+		self._last_tick = ticks
 
 
 class OnceTask(Task):

@@ -57,6 +57,7 @@ class test_sim(unittest.TestCase):
 				)
 
 				self._flipflop.clk = 0
+				await Wait.delay('200ns')
 				for set, check in tests:
 					for attr, value in set.items():
 						setattr(self._flipflop, attr, value)

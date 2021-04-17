@@ -21,61 +21,13 @@ from .._lib import export, timestamp
 from .._part import Part
 from ._task import Task
 
-class sequence(tuple):
-	def __new__(self, ts, num):
-		return tuple.__new__(self, (timestamp(ts), num))
-
-	@property
-	def timestamp(self):
-		return self[0]
-
-	@property
-	def number(self):
-		return self[1]
-
-	def __add__(self, other):
-		if type(other) is sequence:
-			return sequence(self.timestamp + other.timestamp, self.number + other.number)
-		else:
-			try:
-				return sequence(self.timestamp + other, 0)
-			except:
-				return NotImplemented
-
-	def __radd__(self, other):
-		return self.__add__(other)
-
-	def __eq__(self, other):
-		if type(self) is type(other):
-			return super().__eq__(other)
-		return self.timestamp == other
-
-	def __lt__(self, other):
-		if type(self) is type(other):
-			return super().__lt__(other)
-		return self.timestamp < other
-
-	def __le__(self, other):
-		if type(self) is type(other):
-			return super().__le__(other)
-		return self.timestamp <= other
-
-	def __gt__(self, other):
-		if type(self) is type(other):
-			return super().__gt__(other)
-		return self.timestamp > other
-
-	def __ge__(self, other):
-		if type(self) is type(other):
-			return super().__ge__(other)
-		return self.timestamp >= other
-
 @export
 class Sim:
-	__slots__ = '_now', '_setattr', '_tasks', '_current_task'
+	__slots__ = '_now', '_ticks', '_setattr', '_tasks', '_current_task'
 
 	def __init__(self, root):
-		self._now = sequence(timestamp(0), 0)
+		self._now = timestamp(0)
+		self._ticks = 0
 		self._setattr = {}
 
 		tasks = []
@@ -100,10 +52,10 @@ class Sim:
 	def __part_setattr__(self, obj, attr, value):
 		if self._current_task is not None:
 			self._current_task.__part_setattr__(obj, attr, value)
-		self._setattr[(obj, attr)] = self._now
+		self._setattr[(obj, attr)] = self._ticks
 
 	def is_changed(self, since, obj, attr, value = None):
-		if self._setattr.get((obj, attr), sequence(-1, 0)) <= since:
+		if self._setattr.get((obj, attr), -1) <= since:
 			return False
 		if value is not None:
 			return getattr(obj, attr) == value
@@ -119,8 +71,7 @@ class Sim:
 				ready = [t for t in self._tasks if t.ready]
 				for task in ready:
 					with self._make_current_task(task):
-						task.run(self._now)
-					self._now += sequence(0, 1)
+						task.run(self._now, self._ticks)
 
 				# if no tasks were ready, determine the
 				# earliest moment a new task will become
@@ -138,3 +89,5 @@ class Sim:
 						break
 
 					self._now = next_time
+
+				self._ticks += 1
