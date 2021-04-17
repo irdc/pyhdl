@@ -24,19 +24,23 @@ from ._span import rspan
 
 class _GenericLogvecType(type):
 	@cache
-	def _make_type(cls, *args):
+	def _make_type(cls, span):
 		class logvec(cls, metaclass = _LogvecType):
 			__origin__ = cls
-			__args__ = args
+			__args__ = (span,)
 
-		args = ', '.join((str(a) for a in args))
 		if '.' in cls.__qualname__:
 			prefix = cls.__qualname__.rsplit(sep = '.', maxsplit = 1)[0] + '.'
 		else:
 			prefix = ''
 
-		logvec.__name__ = cls._name_fmt.format(args)
-		logvec.__qualname__ = prefix + cls._name_fmt.format(args)
+		if len(span) > 0:
+			logvec.__name__ = cls._name_fmt.format(str(span))
+		elif '_' in cls.__name__:
+			logvec.__name__ = 'logvec.empty.' + cls.__name__.split(sep = '_', maxsplit = 1)[0]
+		else:
+			logvec.__name__ = 'logvec.empty'
+		logvec.__qualname__ = prefix + logvec.__name__
 		logvec.__module__ = cls.__module__
 		return logvec
 
@@ -95,7 +99,7 @@ class _GenericLogvecType(type):
 		elif not isinstance(value, logvec):
 			value = cls._convert(value)
 		if len(value) == 0:
-			return logvec.empty
+			return cls.empty
 
 		return cls._make_type(rspan(start = len(value) - 1, end = 0))._new(value)
 
@@ -332,7 +336,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 			return result._logic_value
 		except:
 			if len(result) == 0:
-				return logvec.empty
+				return cls.empty
 			return self.__origin__[self.__args__[0].rmap(index)](result)
 
 	def __reversed__(self):
@@ -341,17 +345,17 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 		for i in range(len(self) - 1, -1, -1):
 			yield super().__getitem__(i)
 
-	vector = type_property()
+	logvec = type_property()
 	unsigned = type_property()
 	signed = type_property()
 
-	@vector.type
-	def vector(cls):
+	@logvec.type
+	def logvec(cls):
 		return logvec[cls.__args__[0]]
 
-	@vector.value
-	def vector(self):
-		return type(self).vector._new(self)
+	@logvec.value
+	def logvec(self):
+		return type(self).logvec._new(self)
 
 	@unsigned.type
 	def unsigned(cls):
@@ -504,7 +508,7 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 
 		try:
 			if other <= 0:
-				return NotImplemented if other < 0 else logvec.empty
+				return NotImplemented if other < 0 else self.empty
 			else:
 				return logvec[len(self) * other - 1:0]._new(tuple(self) * other)
 		except (TypeError, ValueError):
@@ -515,15 +519,6 @@ class logvec(tuple, metaclass = _GenericLogvecType):
 
 		return self.__mul__(other)
 
-
-class _logvec0(logvec):
-	__origin__ = logvec
-	__args__ = (rspan.empty,)
-
-_logvec0.__name__ = f"{logvec.__name__}.empty"
-_logvec0.__qualname__ = f"{logvec.__qualname__}.empty"
-
-logvec.empty = tuple.__new__(_logvec0, ())
 
 class unsigned_logvec(logvec):
 	_name_fmt = 'logvec[{0}].unsigned'
@@ -772,3 +767,8 @@ class signed_logvec(logvec):
 		"""other % self"""
 
 		return signed_logvec._divmod(other, self)[1]
+
+
+logvec.empty = logvec[rspan.empty]._new(())
+unsigned_logvec.empty = unsigned_logvec[rspan.empty]._new(())
+signed_logvec.empty = signed_logvec[rspan.empty]._new(())

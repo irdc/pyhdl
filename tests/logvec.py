@@ -1,6 +1,7 @@
 import unittest
 import operator
 from hdlpy import logic, logvec
+from hdlpy._logvec import unsigned_logvec, signed_logvec
 
 def unsigned(val):
 	return val.unsigned if isinstance(val, logvec) else val
@@ -175,6 +176,27 @@ class test_logvec(unittest.TestCase):
 		for value, expected in tests:
 			with self.subTest(value = value, expected = expected):
 				actual = str(value)
+				self.assertEqual(expected, actual)
+
+	def test_signed_unsigned(self):
+		tests = (
+			(logvec.empty, 'unsigned', unsigned_logvec.empty),
+			(logvec(0), 'unsigned', unsigned_logvec(0)),
+			(logvec(42), 'unsigned', unsigned_logvec(42)),
+			(logvec('ZX01XZ'), 'unsigned', unsigned_logvec('ZX01XZ')),
+			(logvec.empty, 'signed', signed_logvec.empty),
+			(logvec(0), 'signed', signed_logvec(0)),
+			(logvec(42), 'signed', signed_logvec(42)),
+			(logvec('ZX01XZ'), 'signed', signed_logvec('ZX01XZ')),
+		)
+
+		for value, attr, expected in tests:
+			with self.subTest(value = value, attr = attr, expected = expected):
+				actual = getattr(value, attr)
+				self.assertEqual(expected, actual)
+			expected, value, attr = value, actual, 'logvec'
+			with self.subTest(value = value, attr = attr, expected = expected):
+				actual = getattr(value, attr)
 				self.assertEqual(expected, actual)
 
 	def test_format(self):

@@ -203,4 +203,4 @@ class rspan(_base_span):
 
 		raise ValueError(f"{index!r}: bad index")
 
-rspan.empty = tuple.__new__(rspan, (0, -1))
+rspan.empty = tuple.__new__(rspan, (-1, 0))
